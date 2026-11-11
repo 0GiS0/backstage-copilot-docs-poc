@@ -7,6 +7,17 @@ metadata:
 spec:
   memberOf: [guests]
 ---
+# Owner of the Engineering Handbook component (spec.owner: user:0gis0 in the docs repo).
+# Its name matches the GitHub username, so GitHub sign-in resolves to this entity.
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: 0gis0
+spec:
+  profile:
+    displayName: 0GiS0
+  memberOf: [guests]
+---
 # https://backstage.io/docs/features/software-catalog/descriptor-format#kind-group
 apiVersion: backstage.io/v1alpha1
 kind: Group
