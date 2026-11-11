@@ -27,6 +27,7 @@ backend.add(import('@backstage/plugin-techdocs-backend'));
 backend.add(import('@backstage/plugin-auth-backend'));
 // See https://backstage.io/docs/backend-system/building-backends/migrating#the-auth-plugin
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
+backend.add(import('@backstage/plugin-auth-backend-module-github-provider'));
 // See https://backstage.io/docs/auth/guest/provider
 
 // catalog plugin
@@ -48,9 +49,8 @@ backend.add(
 // search plugin
 backend.add(import('@backstage/plugin-search-backend'));
 
-// search engine
+// search engine: the default in-memory Lunr engine is used (no extra module needed)
 // See https://backstage.io/docs/features/search/search-engines
-backend.add(import('@backstage/plugin-search-backend-module-pg'));
 
 // search collators
 backend.add(import('@backstage/plugin-search-backend-module-catalog'));
@@ -68,5 +68,8 @@ backend.add(import('@backstage/plugin-signals-backend'));
 
 // mcp actions plugin
 backend.add(import('@backstage/plugin-mcp-actions-backend'));
+
+// copilot chat (Copilot SDK + Backstage MCP actions)
+backend.add(import('@internal/backstage-plugin-copilot-chat-backend'));
 
 backend.start();

@@ -1,5 +1,5 @@
 app:
-  title: Scaffolded Backstage App
+  title: Copilot Docs PoC
   baseUrl: http://localhost:3000
 
   # Enable all packages by default, this will discover packages from packages/app/package.json
@@ -95,15 +95,19 @@ app:
               height: 4
 
 organization:
-  name: My Company
+  name: Copilot Docs PoC
 
 backend:
   # Used for enabling authentication, secret is shared by all backend plugins
   # See https://backstage.io/docs/auth/service-to-service-auth for
   # information on the format
-  # auth:
-  #   keys:
-  #     - secret: ${BACKEND_SECRET}
+  auth:
+    externalAccess:
+      # Static token used by the copilot-chat backend to call the MCP actions endpoint
+      - type: static
+        options:
+          token: ${BACKSTAGE_MCP_ACTIONS_TOKEN}
+          subject: copilot-chat
   baseUrl: http://localhost:7007
   listen:
     port: 7007
@@ -125,9 +129,9 @@ backend:
   # see https://backstage.io/docs/ai/mcp-actions#actions-configuration for more details
   actions:
     pluginSources:
-      - auth
       - catalog
-      - scaffolder
+      - search
+      - techdocs
   # workingDirectory: /tmp # Use this to configure a working directory for the scaffolder, defaults to the OS temp-dir
 
 integrations:
@@ -156,15 +160,26 @@ proxy:
 techdocs:
   builder: 'local' # Alternatives - 'external'
   generator:
-    runIn: 'docker' # Alternatives - 'local'
+    runIn: 'local' # Alternatives - 'docker' (requires a Docker daemon)
   publisher:
     type: 'local' # Alternatives - 'googleGcs' or 'awsS3'. Read documentation for using alternatives.
+    local:
+      publishDirectory: ./.techdocs-storage
 
 auth:
   # see https://backstage.io/docs/auth/ to learn about auth providers
   providers:
     # See https://backstage.io/docs/auth/guest/provider
     guest: {}
+    github:
+      development:
+        clientId: ${AUTH_GITHUB_CLIENT_ID}
+        clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
+        signIn:
+          resolvers:
+            # PoC only: allow sign-in without a matching User entity in the catalog
+            - resolver: usernameMatchingUserEntityName
+              dangerouslyAllowSignInWithoutUserInCatalog: true
   # see https://backstage.io/docs/ai/mcp-actions#client-id-metadata-documents
   # to learn more about client id metadata documents
   clientIdMetadataDocuments:
@@ -180,6 +195,19 @@ auth:
 
 scaffolder:
   # see https://backstage.io/docs/features/software-templates/configuration for software template options
+
+search:
+  collators:
+    techdocs:
+      schedule:
+        frequency: { minutes: 1 }
+        timeout: { minutes: 3 }
+        initialDelay: { seconds: 10 }
+    catalog:
+      schedule:
+        frequency: { minutes: 1 }
+        timeout: { minutes: 3 }
+        initialDelay: { seconds: 10 }
 
 catalog:
   import:
@@ -204,6 +232,12 @@ catalog:
       rules:
         - allow: [User, Group]
 
+    # Engineering Handbook migrated from Confluence (Markdown + TechDocs)
+    - type: url
+      target: https://github.com/0GiS0/confluence-to-github-poc/blob/main/catalog-info.yaml
+      rules:
+        - allow: [Component, System, API, Group, User, Resource, Location, Domain]
+
     ## Uncomment these lines to add more example data
     # - type: url
     #   target: https://github.com/backstage/backstage/blob/master/packages/catalog-model/examples/all.yaml
@@ -224,5 +258,13 @@ permission:
 
 # see https://backstage.io/docs/ai/mcp-actions for more details
 mcpActions:
-  name: 'My Company Backstage' # defaults to "backstage"
-  description: 'Tools for managing your software catalog, creating new services from templates, and exploring your developer portal' # optional
+  name: 'Copilot Docs PoC Backstage'
+  description: 'Tools to search the software catalog and read TechDocs pages'
+
+copilotChat:
+  # Static token the chat backend uses to call the Backstage MCP actions endpoint
+  mcpToken: ${BACKSTAGE_MCP_ACTIONS_TOKEN}
+  # Model used when the client does not request one
+  defaultModel: claude-haiku-4.5
+  # Entity whose TechDocs the assistant cites
+  docsEntity: default/component/engineering-handbook-confluence-poc
