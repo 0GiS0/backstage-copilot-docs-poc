@@ -192,6 +192,8 @@ export async function createRouter(
 
       const cleanup = () => {
         unsubscribers.forEach(unsubscribe => unsubscribe());
+        // onClose is defined below and only invoked after both exist
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
         req.off('close', onClose);
       };
 
