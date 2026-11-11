@@ -166,6 +166,9 @@ techdocs:
     local:
       publishDirectory: ./.techdocs-storage
 
+# Full-page OAuth redirects instead of popups (works in embedded browsers that block popups)
+enableExperimentalRedirectFlow: true
+
 auth:
   # see https://backstage.io/docs/auth/ to learn about auth providers
   providers:
