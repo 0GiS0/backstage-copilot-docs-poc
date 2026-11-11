@@ -22,6 +22,8 @@ backend.add(
 
 // techdocs plugin
 backend.add(import('@backstage/plugin-techdocs-backend'));
+// Adds a landing page when the docs repo has no root index.md
+backend.add(import('./modules/techdocsRootIndex'));
 
 // auth plugin
 backend.add(import('@backstage/plugin-auth-backend'));
