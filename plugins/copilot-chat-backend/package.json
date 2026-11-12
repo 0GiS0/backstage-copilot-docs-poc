@@ -41,10 +41,5 @@
     "dist",
     "config.d.ts"
   ],
-  "jest": {
-    "moduleNameMapper": {
-      "^@github/copilot-sdk$": "<rootDir>/src/__mocks__/@github/copilot-sdk.ts"
-    }
-  },
   "configSchema": "config.d.ts"
 }

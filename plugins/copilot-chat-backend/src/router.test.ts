@@ -2,7 +2,10 @@ import { mockErrorHandler, mockServices } from '@backstage/backend-test-utils';
 import express from 'express';
 import request from 'supertest';
 
-jest.mock('@github/copilot-sdk');
+// Explicit factory so the mock also applies when tests run from the repo root.
+jest.mock('@github/copilot-sdk', () =>
+  jest.requireActual('./__mocks__/@github/copilot-sdk'),
+);
 
 const {
   __getLastCreateSessionOptions,
