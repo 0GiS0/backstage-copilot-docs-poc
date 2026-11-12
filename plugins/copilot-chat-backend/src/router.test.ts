@@ -99,6 +99,27 @@ describe('createRouter', () => {
     expect(session.disconnect).toHaveBeenCalledTimes(1);
   });
 
+  it('separates consecutive assistant messages with a blank line', async () => {
+    __setMockSessionFactory(() =>
+      createSession(handlers => {
+        const delta = handlers.get('assistant.message_delta');
+        delta?.({ data: { messageId: 'm1', deltaContent: 'Searching.' } });
+        delta?.({ data: { messageId: 'm2', deltaContent: 'Here' } });
+        delta?.({ data: { messageId: 'm2', deltaContent: ' it is.' } });
+        handlers.get('session.idle')?.({ data: {} });
+      }),
+    );
+
+    const response = await request(app)
+      .post('/chat')
+      .set('X-GitHub-Token', 'fake-token')
+      .send({ message: 'Hello' });
+
+    expect(response.text).toContain('"content":"Searching."');
+    expect(response.text).toContain('"content":"\\n\\nHere"');
+    expect(response.text).toContain('"content":" it is."');
+  });
+
   it('configures the Backstage MCP server and restricts permissions', async () => {
     __setMockSessionFactory(() =>
       createSession(handlers => handlers.get('session.idle')?.({ data: {} })),

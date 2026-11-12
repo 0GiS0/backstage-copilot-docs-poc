@@ -186,6 +186,7 @@ export async function createRouter(
 
       const startTime = Date.now();
       let chunkCount = 0;
+      let lastMessageId: string | undefined;
       let completed = false;
       const activeToolExecutions = new Map<string, string>();
       const unsubscribers: Array<() => void> = [];
@@ -224,11 +225,18 @@ export async function createRouter(
       unsubscribers.push(
         session.on('assistant.message_delta', (event: any) => {
           if (completed) return;
+          const content: string = event.data?.deltaContent ?? '';
+          if (!content) return;
+          // Separate consecutive assistant messages (e.g. before and after a
+          // tool call) so their text is not glued together.
+          const messageId: string | undefined = event.data?.messageId;
+          const separator =
+            chunkCount > 0 && messageId && messageId !== lastMessageId
+              ? '\n\n'
+              : '';
+          if (messageId) lastMessageId = messageId;
           chunkCount++;
-          writeSse(res, {
-            type: 'delta',
-            content: event.data?.deltaContent ?? '',
-          });
+          writeSse(res, { type: 'delta', content: separator + content });
         }),
         session.on('tool.execution_start', (event: any) => {
           if (completed) return;
