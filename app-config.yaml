@@ -108,6 +108,14 @@ backend:
         options:
           token: ${BACKSTAGE_MCP_ACTIONS_TOKEN}
           subject: copilot-chat
+        # Least privilege: only the plugins behind the MCP tools. Backstage
+        # refuses to delegate tokens with permission restrictions through
+        # mcp-actions, so catalog access cannot be narrowed to read-only here.
+        accessRestrictions:
+          - plugin: mcp-actions
+          - plugin: catalog
+          - plugin: search
+          - plugin: techdocs
   baseUrl: http://localhost:7007
   listen:
     port: 7007
@@ -132,6 +140,11 @@ backend:
       - catalog
       - search
       - techdocs
+    # Only expose read-only actions to MCP clients such as the Copilot chat
+    filter:
+      include:
+        - attributes:
+            readOnly: true
   # workingDirectory: /tmp # Use this to configure a working directory for the scaffolder, defaults to the OS temp-dir
 
 integrations:
@@ -239,7 +252,8 @@ catalog:
     - type: url
       target: https://github.com/0GiS0/confluence-to-github-poc/blob/main/catalog-info.yaml
       rules:
-        - allow: [Component, System, API, Group, User, Resource, Location, Domain]
+        - allow:
+            [Component, System, API, Group, User, Resource, Location, Domain]
 
     ## Uncomment these lines to add more example data
     # - type: url

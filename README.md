@@ -118,4 +118,5 @@ yarn build:backend
 - **Página de inicio generada**: el repositorio de documentación no tiene `index.md` en la raíz de `docs_dir`, así que el backend genera una página de inicio con enlaces a las secciones. No se modifica el repositorio de origen.
 - **TechDocs en local, sin Docker** (`techdocs.generator.runIn: local`).
 - **Safari/WebKit en `http://localhost`**: Backstage emite la cookie `backstage-auth` como `Secure; SameSite=None` cuando el host es `localhost`. WebKit la descarta en HTTP, así que los recursos estáticos de TechDocs devuelven 401 y la página se queda cargando. Usa Chrome o Edge en local, o HTTPS.
+- **Token de las MCP actions**: está limitado a los plugins `mcp-actions`, `catalog`, `search` y `techdocs`, y `backend.actions.filter` solo expone acciones `readOnly`. Backstage no permite delegar a través de `mcp-actions` un token con restricciones de permisos, así que quien tenga el token puede seguir escribiendo directamente en la API REST del catálogo. Trátalo como un secreto de backend (no llega al navegador).
 - **Chat**: requiere iniciar sesión con GitHub (no funciona como Guest) y una licencia de Copilot.
