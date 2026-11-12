@@ -1,6 +1,8 @@
 import { mockErrorHandler, mockServices } from '@backstage/backend-test-utils';
 import express from 'express';
 import request from 'supertest';
+import http from 'node:http';
+import { AddressInfo } from 'node:net';
 
 // Explicit factory so the mock also applies when tests run from the repo root.
 jest.mock('@github/copilot-sdk', () =>
@@ -23,6 +25,7 @@ function createSession(onSend: (handlers: Map<string, any>) => void) {
       return jest.fn(() => handlers.delete(eventType));
     }),
     send: jest.fn(async () => onSend(handlers)),
+    abort: jest.fn(async () => {}),
     disconnect: jest.fn(),
     destroy: jest.fn(),
   };
@@ -121,6 +124,68 @@ describe('createRouter', () => {
     expect(response.text).toContain('"content":"Searching."');
     expect(response.text).toContain('"content":"\\n\\nHere"');
     expect(response.text).toContain('"content":" it is."');
+  });
+
+  it('reports asynchronous session errors and aborts generation', async () => {
+    const session = createSession(handlers => {
+      handlers.get('assistant.message_delta')?.({
+        data: { deltaContent: 'Partial' },
+      });
+      handlers.get('session.error')?.({ data: { message: 'Model failed' } });
+      handlers.get('session.idle')?.({ data: {} });
+    });
+    __setMockSessionFactory(() => session);
+
+    const response = await request(app)
+      .post('/chat')
+      .set('X-GitHub-Token', 'fake-token')
+      .send({ message: 'Hello' });
+
+    expect(response.text).toContain('"type":"error","error":"Model failed"');
+    expect(response.text).not.toContain('"type":"done"');
+    expect(session.abort).toHaveBeenCalledTimes(1);
+    expect(session.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('aborts generation when the client disconnects mid-stream', async () => {
+    // send() resolves without ever emitting session.idle
+    const session = createSession(() => {});
+    __setMockSessionFactory(() => session);
+
+    const server = app.listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      await new Promise<void>((resolve, reject) => {
+        const req = http.request(
+          {
+            port,
+            method: 'POST',
+            path: '/chat',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-GitHub-Token': 'fake-token',
+            },
+          },
+          res => {
+            res.once('data', () => {
+              req.destroy();
+              resolve();
+            });
+          },
+        );
+        req.on('error', () => {});
+        req.once('error', reject);
+        req.end(JSON.stringify({ message: 'Hello' }));
+      });
+
+      for (let i = 0; i < 50 && !session.disconnect.mock.calls.length; i++) {
+        await new Promise(r => setTimeout(r, 10));
+      }
+      expect(session.abort).toHaveBeenCalledTimes(1);
+      expect(session.disconnect).toHaveBeenCalledTimes(1);
+    } finally {
+      server.close();
+    }
   });
 
   it('configures the Backstage MCP server and restricts permissions', async () => {

@@ -30,7 +30,10 @@ You answer questions using ONLY the documentation that is published in Backstage
 
 ## Citations (required)
 - Every answer MUST end with a "Sources" section listing the TechDocs pages used, as Markdown links.
-- Search results expose the page path in \`document.location\`, e.g. \`/docs/${namespace}/${kind}/${name}/<path>/\`. Build the link by prefixing it with ${appBaseUrl.replace(/\/$/, '')} (keep the already URL-encoded path; the result is ${docsBaseUrl}/<path>/).
+- Search results expose the page path in \`document.location\`, e.g. \`/docs/${namespace}/${kind}/${name}/<path>/\`. Build the link by prefixing it with ${appBaseUrl.replace(
+    /\/$/,
+    '',
+  )} (keep the already URL-encoded path; the result is ${docsBaseUrl}/<path>/).
 - Prefer the page title as the link text, e.g. [Rollback Procedure](${docsBaseUrl}/...).
 
 ## Style

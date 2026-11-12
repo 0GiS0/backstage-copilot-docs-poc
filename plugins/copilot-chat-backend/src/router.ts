@@ -156,10 +156,40 @@ export async function createRouter(
 
     let client: CopilotClient | undefined;
     let session: any;
+    let completed = false;
+    const unsubscribers: Array<() => void> = [];
+
+    // Idempotent teardown shared by normal completion, errors and client
+    // disconnects. Aborting first stops any in-flight generation.
+    const releaseResources = async (abortGeneration: boolean) => {
+      unsubscribers.splice(0).forEach(unsubscribe => unsubscribe());
+      // onClose is defined below and only referenced after it exists
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      res.off('close', onClose);
+      if (abortGeneration && typeof session?.abort === 'function') {
+        await session.abort().catch(() => {});
+      }
+      await disconnectSession(session).catch(() => {});
+      await client?.stop().catch(() => {});
+    };
+
+    // `res` emits 'close' when the client goes away before the stream ends;
+    // registering it before startup also covers disconnects during startup.
+    const onClose = () => {
+      if (completed) return;
+      completed = true;
+      logger.warn('[chat] Client disconnected; aborting generation');
+      releaseResources(true).catch(() => {});
+    };
+    res.on('close', onClose);
 
     try {
       client = new CopilotClient({ gitHubToken: githubToken });
       await client.start();
+      if (completed) {
+        await releaseResources(false);
+        return;
+      }
 
       const sessionConfig = {
         model,
@@ -181,46 +211,34 @@ export async function createRouter(
         session = await client.createSession({ sessionId, ...sessionConfig });
         logger.info('[chat] Session created');
       }
+      if (completed) {
+        await releaseResources(false);
+        return;
+      }
 
       writeSse(res, { type: 'session', sessionId });
 
       const startTime = Date.now();
       let chunkCount = 0;
       let lastMessageId: string | undefined;
-      let completed = false;
       const activeToolExecutions = new Map<string, string>();
-      const unsubscribers: Array<() => void> = [];
 
-      const cleanup = () => {
-        unsubscribers.forEach(unsubscribe => unsubscribe());
-        // onClose is defined below and only invoked after both exist
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        req.off('close', onClose);
-      };
-
-      const finishResponse = async () => {
+      const finishResponse = async (error?: string) => {
         if (completed) return;
         completed = true;
-        cleanup();
-        await disconnectSession(session).catch(() => {});
-        await client?.stop().catch(() => {});
+        await releaseResources(Boolean(error));
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-        logger.info(
-          `[chat] Response complete: ${chunkCount} chunks in ${elapsed}s`,
-        );
-        writeSse(res, { type: 'done' });
+        if (error) {
+          logger.error(`[chat] Session error after ${elapsed}s: ${error}`);
+          writeSse(res, { type: 'error', error, resetSession: true });
+        } else {
+          logger.info(
+            `[chat] Response complete: ${chunkCount} chunks in ${elapsed}s`,
+          );
+          writeSse(res, { type: 'done' });
+        }
         res.end();
       };
-
-      const onClose = () => {
-        if (completed) return;
-        completed = true;
-        logger.warn('[chat] Client disconnected');
-        cleanup();
-        disconnectSession(session).catch(() => {});
-        client?.stop().catch(() => {});
-      };
-      req.on('close', onClose);
 
       unsubscribers.push(
         session.on('assistant.message_delta', (event: any) => {
@@ -276,6 +294,11 @@ export async function createRouter(
             status: success ? 'completed' : 'failed',
           });
         }),
+        session.on('session.error', async (event: any) => {
+          await finishResponse(
+            event.data?.message || 'The Copilot session failed',
+          );
+        }),
         session.on('session.idle', async () => {
           await finishResponse();
         }),
@@ -284,9 +307,10 @@ export async function createRouter(
       await session.send({ prompt: message });
       logger.info('[chat] Message sent; awaiting session idle');
     } catch (err: any) {
+      if (completed) return;
+      completed = true;
       logger.error(`[chat] Chat error: ${err.message}`);
-      await disconnectSession(session).catch(() => {});
-      await client?.stop().catch(() => {});
+      await releaseResources(false);
       writeSse(res, { type: 'error', error: err.message, resetSession: true });
       res.end();
     }
