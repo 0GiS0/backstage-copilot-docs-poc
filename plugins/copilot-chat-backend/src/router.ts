@@ -1,4 +1,8 @@
-import { LoggerService } from '@backstage/backend-plugin-api';
+import {
+  AuthService,
+  HttpAuthService,
+  LoggerService,
+} from '@backstage/backend-plugin-api';
 import { CopilotClient } from '@github/copilot-sdk';
 import express from 'express';
 import Router from 'express-promise-router';
@@ -8,8 +12,8 @@ export interface RouterOptions {
   logger: LoggerService;
   /** Full URL of the Backstage MCP actions endpoint */
   mcpUrl: string;
-  /** Static token accepted by the MCP actions endpoint */
-  mcpToken?: string;
+  auth: AuthService;
+  httpAuth: HttpAuthService;
   /** Public URL of the Backstage frontend (used for citations) */
   appBaseUrl: string;
   /** Entity ref path (namespace/kind/name) that owns the docs */
@@ -84,7 +88,8 @@ export async function createRouter(
   const {
     logger,
     mcpUrl,
-    mcpToken,
+    auth,
+    httpAuth,
     appBaseUrl,
     docsEntity,
     defaultModel,
@@ -105,15 +110,17 @@ export async function createRouter(
   });
 
   const systemPrompt = buildSystemPrompt({ appBaseUrl, docsEntity });
-  const mcpServers = {
+  // Built per request: the token is minted on behalf of the calling user so
+  // MCP actions run with their identity and the permission policy applies.
+  const buildMcpServers = (mcpToken: string) => ({
     'backstage-mcp': {
       type: 'http' as const,
       url: mcpUrl,
-      headers: mcpToken ? { Authorization: `Bearer ${mcpToken}` } : {},
+      headers: { Authorization: `Bearer ${mcpToken}` },
       // Read-only tools: the assistant must not register or remove entities
       tools: MCP_TOOLS,
     },
-  };
+  });
 
   // GET /models — list the models available to the signed-in GitHub user
   router.get('/models', async (req, res) => {
@@ -163,6 +170,12 @@ export async function createRouter(
       res.status(400).json({ error: 'message is required' });
       return;
     }
+
+    const credentials = await httpAuth.credentials(req, { allow: ['user'] });
+    const { token: mcpToken } = await auth.getPluginRequestToken({
+      onBehalfOf: credentials,
+      targetPluginId: 'mcp-actions',
+    });
 
     const model = requestedModel || defaultModel;
     logger.info(
@@ -218,7 +231,7 @@ export async function createRouter(
         model,
         streaming: true,
         onPermissionRequest,
-        mcpServers,
+        mcpServers: buildMcpServers(mcpToken),
         systemMessage: { mode: 'append' as const, content: systemPrompt },
       } as any;
 

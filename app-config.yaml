@@ -98,24 +98,6 @@ organization:
   name: Copilot Docs PoC
 
 backend:
-  # Used for enabling authentication, secret is shared by all backend plugins
-  # See https://backstage.io/docs/auth/service-to-service-auth for
-  # information on the format
-  auth:
-    externalAccess:
-      # Static token used by the copilot-chat backend to call the MCP actions endpoint
-      - type: static
-        options:
-          token: ${BACKSTAGE_MCP_ACTIONS_TOKEN}
-          subject: copilot-chat
-        # Least privilege: only the plugins behind the MCP tools. Backstage
-        # refuses to delegate tokens with permission restrictions through
-        # mcp-actions, so catalog access cannot be narrowed to read-only here.
-        accessRestrictions:
-          - plugin: mcp-actions
-          - plugin: catalog
-          - plugin: search
-          - plugin: techdocs
   baseUrl: http://localhost:7007
   listen:
     port: 7007
@@ -314,8 +296,8 @@ mcpActions:
   description: 'Tools to search the software catalog and read TechDocs pages'
 
 copilotChat:
-  # Static token the chat backend uses to call the Backstage MCP actions endpoint
-  mcpToken: ${BACKSTAGE_MCP_ACTIONS_TOKEN}
+  # The chat backend calls the MCP actions endpoint with a token minted on
+  # behalf of the signed-in user, so the permission policy applies to every tool.
   # Model used when the client does not request one
   defaultModel: claude-haiku-4.5
   # Entity whose TechDocs the assistant cites

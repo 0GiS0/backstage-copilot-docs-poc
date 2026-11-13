@@ -1,4 +1,8 @@
-import { mockErrorHandler, mockServices } from '@backstage/backend-test-utils';
+import {
+  mockCredentials,
+  mockErrorHandler,
+  mockServices,
+} from '@backstage/backend-test-utils';
 import express from 'express';
 import request from 'supertest';
 import http from 'node:http';
@@ -38,7 +42,8 @@ describe('createRouter', () => {
     const router = await createRouter({
       logger: mockServices.logger.mock(),
       mcpUrl: 'http://localhost:7007/api/mcp-actions/v1',
-      mcpToken: 'static-token',
+      auth: mockServices.auth(),
+      httpAuth: mockServices.httpAuth(),
       appBaseUrl: 'http://localhost:3000',
       docsEntity: 'default/component/engineering-handbook',
       defaultModel: 'test-model',
@@ -65,6 +70,8 @@ describe('createRouter', () => {
   it('rejects unlicensed users before doing any work', async () => {
     const licensedRouter = await createRouter({
       logger: mockServices.logger.mock(),
+      auth: mockServices.auth(),
+      httpAuth: mockServices.httpAuth(),
       mcpUrl: 'http://localhost:7007/api/mcp-actions/v1',
       appBaseUrl: 'http://localhost:3000',
       docsEntity: 'default/component/engineering-handbook',
@@ -221,6 +228,7 @@ describe('createRouter', () => {
     await request(app)
       .post('/chat')
       .set('X-GitHub-Token', 'fake-token')
+      .set('Authorization', mockCredentials.user.header('user:default/alice'))
       .send({ message: 'Hello' });
 
     const options = __getLastCreateSessionOptions();
@@ -228,9 +236,14 @@ describe('createRouter', () => {
     expect(options.mcpServers['backstage-mcp']).toEqual(
       expect.objectContaining({
         url: 'http://localhost:7007/api/mcp-actions/v1',
-        headers: { Authorization: 'Bearer static-token' },
+        headers: {
+          Authorization: expect.stringMatching(/^Bearer mock-service-token:/),
+        },
       }),
     );
+    const token = options.mcpServers['backstage-mcp'].headers.Authorization;
+    expect(token).toContain('user:default/alice');
+    expect(token).toContain('mcp-actions');
     expect(options.systemMessage.content).toContain(
       'http://localhost:3000/docs/default/component/engineering-handbook',
     );
@@ -240,5 +253,26 @@ describe('createRouter', () => {
     await expect(
       options.onPermissionRequest({ kind: 'shell' }),
     ).resolves.toEqual({ kind: 'reject' });
+  });
+
+  it('mints a different MCP token for each calling user', async () => {
+    __setMockSessionFactory(() =>
+      createSession(handlers => handlers.get('session.idle')?.({ data: {} })),
+    );
+    const tokenFor = async (userEntityRef: string) => {
+      await request(app)
+        .post('/chat')
+        .set('X-GitHub-Token', 'fake-token')
+        .set('Authorization', mockCredentials.user.header(userEntityRef))
+        .send({ message: 'Hello' });
+      return __getLastCreateSessionOptions().mcpServers['backstage-mcp'].headers
+        .Authorization;
+    };
+
+    const alice = await tokenFor('user:default/alice');
+    const bob = await tokenFor('user:default/bob');
+
+    expect(alice).not.toEqual(bob);
+    expect(bob).toContain('user:default/bob');
   });
 });

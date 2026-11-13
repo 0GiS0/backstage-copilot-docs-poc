@@ -38,7 +38,8 @@ export const copilotChatPlugin = createBackendPlugin({
           await createRouter({
             logger,
             mcpUrl,
-            mcpToken: config.getOptionalString('copilotChat.mcpToken'),
+            auth,
+            httpAuth,
             appBaseUrl: config.getString('app.baseUrl'),
             docsEntity: config.getString('copilotChat.docsEntity'),
             isLicensed: createLicenseCheck({

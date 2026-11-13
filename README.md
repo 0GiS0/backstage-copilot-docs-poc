@@ -27,7 +27,7 @@ flowchart LR
   techdocs --> search
   chat -- Copilot SDK --> copilot[(GitHub Copilot)]
   copilot -. tool calls .-> chat
-  chat -- token estático --> mcp
+  chat -- token del usuario --> mcp
   mcp --> search
   mcp --> catalog
   mcp --> techdocs
@@ -73,12 +73,11 @@ cp .env.example .env
 
 Rellena las variables (nunca subas `.env` al repositorio):
 
-| Variable                                              | Uso                                                                                                                                                  |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GITHUB_TOKEN`                                        | Lectura del repositorio privado de documentación                                                                                                     |
-| `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET` | OAuth App para el inicio de sesión con GitHub                                                                                                        |
-| `BACKSTAGE_MCP_ACTIONS_TOKEN`                         | Token estático con el que el backend del chat llama a las MCP actions. Genéralo con `node -p 'require("crypto").randomBytes(24).toString("base64")'` |
-| `TECHDOCS_VENV` (opcional)                            | Ruta del venv con mkdocs (por defecto `~/.venvs/techdocs`)                                                                                           |
+| Variable                                              | Uso                                                        |
+| ----------------------------------------------------- | ---------------------------------------------------------- |
+| `GITHUB_TOKEN`                                        | Lectura del repositorio privado de documentación           |
+| `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET` | OAuth App para el inicio de sesión con GitHub              |
+| `TECHDOCS_VENV` (opcional)                            | Ruta del venv con mkdocs (por defecto `~/.venvs/techdocs`) |
 
 Si tu red necesita un proxy de npm, instala las dependencias con él:
 
@@ -118,5 +117,5 @@ yarn build:backend
 - **Página de inicio generada**: el repositorio de documentación no tiene `index.md` en la raíz de `docs_dir`, así que el backend genera una página de inicio con enlaces a las secciones. No se modifica el repositorio de origen.
 - **TechDocs en local, sin Docker** (`techdocs.generator.runIn: local`).
 - **Safari/WebKit en `http://localhost`**: Backstage emite la cookie `backstage-auth` como `Secure; SameSite=None` cuando el host es `localhost`. WebKit la descarta en HTTP, así que los recursos estáticos de TechDocs devuelven 401 y la página se queda cargando. Usa Chrome o Edge en local, o HTTPS.
-- **Token de las MCP actions**: está limitado a los plugins `mcp-actions`, `catalog`, `search` y `techdocs`, y `backend.actions.filter` solo expone acciones `readOnly`. Backstage no permite delegar a través de `mcp-actions` un token con restricciones de permisos, así que quien tenga el token puede seguir escribiendo directamente en la API REST del catálogo. Trátalo como un secreto de backend (no llega al navegador).
+- **MCP actions del chat**: el backend del chat llama a las MCP actions con un token emitido en nombre del usuario que ha iniciado sesión, así que la política de permisos se aplica también a lo que el asistente puede leer. `backend.actions.filter` solo expone acciones `readOnly`.
 - **Chat**: requiere iniciar sesión con GitHub (no funciona como Guest) y una licencia de Copilot.
