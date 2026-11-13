@@ -47,6 +47,15 @@ export interface Config {
      * @default 5
      */
     maxAssetSizeMb?: number;
+    /**
+     * Committer for commits created through the Git Data API (new pages and
+     * uploads). Defaults to the GitHub App bot, resolved from the App
+     * configured in `integrations.github`.
+     */
+    committer?: {
+      name: string;
+      email: string;
+    };
     sync?: {
       /**
        * How often pull requests are synchronized with the database.

@@ -22,6 +22,7 @@ import {
   ScmIntegrations,
 } from '@backstage/integration';
 import { Octokit } from '@octokit/rest';
+import { createSign } from 'node:crypto';
 import {
   CommitFileChange,
   CommitIdentity,
@@ -46,6 +47,38 @@ const FILE_STATUS: Record<string, GithubPullRequestFile['status']> = {
   removed: 'removed',
 };
 const USER_ID_CACHE_TTL_MS = 60 * 60 * 1000;
+
+function base64Url(value: string | Buffer): string {
+  return Buffer.from(value).toString('base64url');
+}
+
+/** Signs a short-lived GitHub App JWT (RS256) with the App private key. */
+export function createAppJwt(
+  appId: number | string,
+  privateKey: string,
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+): string {
+  const header = base64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  // Backdated iat tolerates clock drift; GitHub caps the lifetime at 10 minutes.
+  const payload = base64Url(
+    JSON.stringify({
+      iat: nowSeconds - 60,
+      exp: nowSeconds + 540,
+      iss: String(appId),
+    }),
+  );
+  const signature = createSign('RSA-SHA256')
+    .update(`${header}.${payload}`)
+    .sign(privateKey);
+  return `${header}.${payload}.${base64Url(signature)}`;
+}
+
+export type OctokitGatewayOptions = {
+  /** Committer used for Git Data commits; resolved from the GitHub App if omitted. */
+  committer?: { name: string; email: string };
+  /** Custom fetch, mainly for tests. */
+  fetch?: typeof fetch;
+};
 
 type PullRequestData = {
   number: number;
@@ -91,18 +124,103 @@ export class OctokitGithubGateway implements GithubGateway {
     { id: number | undefined; expires: number }
   >();
 
-  static fromConfig(config: Config): OctokitGithubGateway {
+  private readonly committers = new Map<string, Promise<CommitIdentity>>();
+
+  static fromConfig(
+    config: Config,
+    options: Pick<OctokitGatewayOptions, 'fetch'> = {},
+  ): OctokitGithubGateway {
     const integrations = ScmIntegrations.fromConfig(config);
+    const name = config.getOptionalString('docsStudio.committer.name');
+    const email = config.getOptionalString('docsStudio.committer.email');
+    if (Boolean(name) !== Boolean(email)) {
+      throw new InputError('docsStudio.committer requires both name and email');
+    }
     return new OctokitGithubGateway(
       integrations,
       DefaultGithubCredentialsProvider.fromIntegrations(integrations),
+      { ...options, committer: name && email ? { name, email } : undefined },
     );
   }
 
   constructor(
     private readonly integrations: ScmIntegrations,
     private readonly credentialsProvider: GithubCredentialsProvider,
+    private readonly options: OctokitGatewayOptions = {},
   ) {}
+
+  /**
+   * Identity of the GitHub App bot that serves the repository. Resolved once
+   * per App and cached; a failed lookup is not cached.
+   */
+  async resolveCommitter(repo: RepoRef): Promise<CommitIdentity> {
+    if (this.options.committer) {
+      return this.options.committer;
+    }
+    const integration = this.integrations.github.byHost(repo.host);
+    const owner = repo.owner.toLowerCase();
+    const apps = integration?.config.apps ?? [];
+    const app =
+      apps.find(a =>
+        a.allowedInstallationOwners?.some(o => o.toLowerCase() === owner),
+      ) ?? apps.find(a => !a.allowedInstallationOwners?.length);
+    if (!integration || !app) {
+      throw new NotAllowedError(
+        `Cannot resolve the GitHub App identity for ${repo.owner}: no matching app in integrations.github. Set docsStudio.committer to override it`,
+      );
+    }
+    const key = `${repo.host}:${app.appId}`;
+    let pending = this.committers.get(key);
+    if (!pending) {
+      pending = this.lookupAppIdentity(
+        repo,
+        integration.config.apiBaseUrl,
+        app.appId,
+        app.privateKey,
+      );
+      this.committers.set(key, pending);
+      pending.catch(() => this.committers.delete(key));
+    }
+    return pending;
+  }
+
+  private async lookupAppIdentity(
+    repo: RepoRef,
+    baseUrl: string | undefined,
+    appId: number,
+    privateKey: string,
+  ): Promise<CommitIdentity> {
+    try {
+      const appOctokit = new Octokit({
+        auth: createAppJwt(appId, privateKey),
+        baseUrl,
+        userAgent: 'backstage-docs-studio',
+        request: this.options.fetch ? { fetch: this.options.fetch } : undefined,
+      });
+      const { data: app } = await appOctokit.apps.getAuthenticated();
+      const slug = app?.slug;
+      if (!slug) {
+        throw new Error('the App has no slug');
+      }
+      const botLogin = `${slug}[bot]`;
+      // App JWTs are only accepted by /app endpoints; the user lookup goes
+      // through the installation token instead.
+      const installationOctokit = await this.octokit(repo);
+      const { data: bot } = await installationOctokit.users.getByUsername({
+        username: botLogin,
+      });
+      return {
+        name: botLogin,
+        email: `${bot.id}+${botLogin}@users.noreply.github.com`,
+      };
+    } catch (error) {
+      throw new Error(
+        `Could not resolve the GitHub App identity used as commit committer (${githubMessage(
+          error,
+        )}). Set docsStudio.committer to override it`,
+      );
+    }
+  }
 
   async hasAppInstallation(repo: RepoRef): Promise<boolean> {
     try {
@@ -274,6 +392,8 @@ export class OctokitGithubGateway implements GithubGateway {
           content: file.content!.toString('base64'),
           sha: file.expectedSha as string,
           branch: options.branch,
+          // Committer is intentionally omitted: GitHub defaults it to the
+          // authenticated App and signs the commit on its behalf.
           author: options.author,
         });
         return { commitSha: data.commit.sha! };
@@ -293,6 +413,8 @@ export class OctokitGithubGateway implements GithubGateway {
       files: CommitFileChange[];
     },
   ): Promise<{ commitSha: string }> {
+    // Resolve first so a failure never leaves blobs or commits behind.
+    const committer = await this.resolveCommitter(repo);
     return this.run('committing files', async () => {
       const base = { owner: repo.owner, repo: repo.repo };
       const headSha = await this.getBranchHead(repo, options.branch);
@@ -342,12 +464,16 @@ export class OctokitGithubGateway implements GithubGateway {
         base_tree: headCommit.data.tree.sha,
         tree,
       });
+      const date = new Date().toISOString();
       const commit = await octokit.git.createCommit({
         ...base,
         message: options.message,
         tree: newTree.data.sha,
         parents: [headSha],
-        author: { ...options.author, date: new Date().toISOString() },
+        // The Git Data API defaults the committer to the author, so it is set
+        // explicitly. (The Contents API already defaults it to the App.)
+        author: { ...options.author, date },
+        committer: { ...committer, date },
       });
       try {
         await octokit.git.updateRef({
@@ -575,6 +701,7 @@ export class OctokitGithubGateway implements GithubGateway {
       auth: credentials.token,
       baseUrl: integration.config.apiBaseUrl,
       userAgent: 'backstage-docs-studio',
+      request: this.options.fetch ? { fetch: this.options.fetch } : undefined,
     });
   }
 

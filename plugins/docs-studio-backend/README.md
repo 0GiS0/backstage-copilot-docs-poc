@@ -27,6 +27,9 @@ docsStudio:
   branchPrefix: docs-studio
   assetsDir: attachments # relative to the docs dir
   maxAssetSizeMb: 5
+  committer: # optional, see below
+    name: my-app[bot]
+    email: 12345+my-app[bot]@users.noreply.github.com
   sync:
     frequency: { minutes: 1 } # refresh and external PR import
 ```
@@ -38,6 +41,20 @@ docsStudio:
 - Authors cannot approve their own proposals (four-eyes).
 - A background task refreshes open proposals and imports open pull requests
   that touch an entity's docs directory.
+
+## Commit identity
+
+The author of every commit is the Backstage user (their noreply or profile
+email). The committer is the GitHub App bot: for multi-file commits (new pages
+with nav changes, image uploads) it is set explicitly through the Git Data API,
+which otherwise copies the author. Single-file edits use the Contents API,
+which already commits as the App.
+
+The bot identity (`<slug>[bot]` and `<id>+<slug>[bot]@users.noreply.github.com`)
+is resolved once per App from the App in `integrations.github[].apps[]`. Set
+`docsStudio.committer` to skip the lookup. If the identity cannot be resolved,
+multi-file commits fail with a clear error instead of falling back to the
+author.
 
 ## Testing and extension point
 
