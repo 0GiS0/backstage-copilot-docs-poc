@@ -16,3 +16,18 @@
 
 export { docsStudioPlugin as default } from './plugin';
 export { catalogModuleDocsStudioPermissionRules } from './catalogModule';
+export {
+  docsStudioGithubGatewayExtensionPoint,
+  type DocsStudioGithubGatewayExtensionPoint,
+} from './extensions';
+export type {
+  GithubGateway,
+  GithubFile,
+  GithubPullRequest,
+  GithubPullRequestFile,
+  CommitFileChange,
+  CommitIdentity,
+  CommitStatusState,
+  RepoRef,
+} from './github/gateway';
+export { MergeBlockedError, ShaMismatchError } from './github/errors';
