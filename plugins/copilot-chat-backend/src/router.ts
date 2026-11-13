@@ -15,6 +15,11 @@ export interface RouterOptions {
   /** Entity ref path (namespace/kind/name) that owns the docs */
   docsEntity: string;
   defaultModel: string;
+  /**
+   * Returns whether the caller may use the chat (the user has a GitHub
+   * Copilot license). When omitted every authenticated caller is allowed.
+   */
+  isLicensed?: (req: express.Request) => Promise<boolean>;
 }
 
 function extractToolName(eventData: any): string | undefined {
@@ -76,10 +81,28 @@ const onPermissionRequest = async (request: any) =>
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, mcpUrl, mcpToken, appBaseUrl, docsEntity, defaultModel } =
-    options;
+  const {
+    logger,
+    mcpUrl,
+    mcpToken,
+    appBaseUrl,
+    docsEntity,
+    defaultModel,
+    isLicensed,
+  } = options;
   const router = Router();
   router.use(express.json());
+
+  // Server-side counterpart of the frontend license gate
+  router.use(async (req, res, next) => {
+    if (isLicensed && !(await isLicensed(req))) {
+      res
+        .status(403)
+        .json({ error: 'The chat requires a GitHub Copilot license' });
+      return;
+    }
+    next();
+  });
 
   const systemPrompt = buildSystemPrompt({ appBaseUrl, docsEntity });
   const mcpServers = {

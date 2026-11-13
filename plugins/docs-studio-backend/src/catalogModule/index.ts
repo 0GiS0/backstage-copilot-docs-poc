@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import { createBackendModule } from '@backstage/backend-plugin-api';
+import {
+  coreServices,
+  createBackendModule,
+} from '@backstage/backend-plugin-api';
+import { isListedInAnnotationRule } from './isListedInAnnotationRule';
+
+export { isListedInAnnotationRule } from './isListedInAnnotationRule';
 
 /**
  * Catalog module that registers the Docs Studio permission rules.
@@ -26,8 +32,10 @@ export const catalogModuleDocsStudioPermissionRules = createBackendModule({
   moduleId: 'docs-studio-permission-rules',
   register(env) {
     env.registerInit({
-      deps: {},
-      async init() {},
+      deps: { permissionsRegistry: coreServices.permissionsRegistry },
+      async init({ permissionsRegistry }) {
+        permissionsRegistry.addPermissionRules([isListedInAnnotationRule]);
+      },
     });
   },
 });

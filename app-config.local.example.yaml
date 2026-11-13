@@ -1,0 +1,18 @@
+# Local overrides for Docs Studio. Copy to app-config.local.yaml (gitignored):
+#
+#   cp app-config.local.example.yaml app-config.local.yaml
+#
+# Backstage merges app-config.local.yaml over app-config.yaml, but arrays are
+# REPLACED, not merged. That is why the whole `integrations.github` block is
+# repeated here: the PAT entry (used for reading) AND the GitHub App (used by
+# Docs Studio to create branches, commits, pull requests and commit statuses).
+#
+# `github-app-docs-studio-credentials.yaml` is created by
+# `node scripts/docs-studio/create-github-app.mjs` (see scripts/docs-studio/README.md).
+# It is gitignored by the `*-credentials.yaml` rule. Never commit it.
+integrations:
+  github:
+    - host: github.com
+      token: ${GITHUB_TOKEN}
+      apps:
+        - $include: ./github-app-docs-studio-credentials.yaml

@@ -5,7 +5,7 @@ import { MessageBubble } from './MessageBubble';
 describe('MessageBubble', () => {
   it('renders assistant messages as markdown with clickable citations', async () => {
     const href =
-      'http://localhost:3000/docs/default/component/engineering-handbook-confluence-poc/Rollback%20Procedure/';
+      'http://localhost:3000/docs/default/component/engineering-handbook/Rollback%20Procedure/';
     await renderInTestApp(
       <MessageBubble
         message={{

@@ -40,7 +40,7 @@ describe('createRouter', () => {
       mcpUrl: 'http://localhost:7007/api/mcp-actions/v1',
       mcpToken: 'static-token',
       appBaseUrl: 'http://localhost:3000',
-      docsEntity: 'default/component/engineering-handbook-confluence-poc',
+      docsEntity: 'default/component/engineering-handbook',
       defaultModel: 'test-model',
     });
     app = express();
@@ -60,6 +60,31 @@ describe('createRouter', () => {
     expect(chat.status).toBe(401);
     expect(models.status).toBe(401);
     expect(models.body).toEqual({ error: 'Missing X-GitHub-Token header' });
+  });
+
+  it('rejects unlicensed users before doing any work', async () => {
+    const licensedRouter = await createRouter({
+      logger: mockServices.logger.mock(),
+      mcpUrl: 'http://localhost:7007/api/mcp-actions/v1',
+      appBaseUrl: 'http://localhost:3000',
+      docsEntity: 'default/component/engineering-handbook',
+      defaultModel: 'test-model',
+      isLicensed: async () => false,
+    });
+    const licensedApp = express();
+    licensedApp.use(licensedRouter);
+    licensedApp.use(mockErrorHandler());
+
+    const chat = await request(licensedApp)
+      .post('/chat')
+      .set('X-GitHub-Token', 'fake-token')
+      .send({ message: 'Hi' });
+    const models = await request(licensedApp)
+      .get('/models')
+      .set('X-GitHub-Token', 'fake-token');
+
+    expect(chat.status).toBe(403);
+    expect(models.status).toBe(403);
   });
 
   it('rejects chat without a message', async () => {
@@ -207,7 +232,7 @@ describe('createRouter', () => {
       }),
     );
     expect(options.systemMessage.content).toContain(
-      'http://localhost:3000/docs/default/component/engineering-handbook-confluence-poc',
+      'http://localhost:3000/docs/default/component/engineering-handbook',
     );
     await expect(options.onPermissionRequest({ kind: 'mcp' })).resolves.toEqual(
       { kind: 'approve-once' },
