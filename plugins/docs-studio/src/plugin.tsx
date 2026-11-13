@@ -14,7 +14,62 @@
  * limitations under the License.
  */
 
-import { createFrontendPlugin } from '@backstage/frontend-plugin-api';
+import {
+  ApiBlueprint,
+  PageBlueprint,
+  createFrontendPlugin,
+  discoveryApiRef,
+  fetchApiRef,
+} from '@backstage/frontend-plugin-api';
+import { AddonBlueprint } from '@backstage/plugin-techdocs-react/alpha';
+import DescriptionIcon from '@material-ui/icons/Description';
+import { DocsStudioClient, docsStudioApiRef } from './api';
+import { DocsStudioToolbar } from './components/Addon/DocsStudioToolbar';
+import { HideNativeEditLink } from './components/Addon/HideNativeEditLink';
+import { DEFAULT_ROOT_PATH, rootRouteRef } from './routes';
+import { strings } from './strings';
+
+const api = ApiBlueprint.make({
+  params: defineParams =>
+    defineParams({
+      api: docsStudioApiRef,
+      deps: { discoveryApi: discoveryApiRef, fetchApi: fetchApiRef },
+      factory: ({ discoveryApi, fetchApi }) =>
+        new DocsStudioClient({ discoveryApi, fetchApi }),
+    }),
+});
+
+const page = PageBlueprint.make({
+  params: {
+    path: DEFAULT_ROOT_PATH,
+    routeRef: rootRouteRef,
+    title: strings.pluginTitle,
+    icon: <DescriptionIcon fontSize="inherit" />,
+    noHeader: true,
+    loader: () =>
+      import('./components/DocsStudioPage/DocsStudioPage').then(m => (
+        <m.DocsStudioPage />
+      )),
+  },
+});
+
+const toolbarAddon = AddonBlueprint.make({
+  name: 'toolbar',
+  params: {
+    name: 'DocsStudioToolbar',
+    location: 'Subheader',
+    component: DocsStudioToolbar,
+  },
+});
+
+const hideEditAddon = AddonBlueprint.make({
+  name: 'hide-native-edit',
+  params: {
+    name: 'DocsStudioHideNativeEdit',
+    location: 'Content',
+    component: HideNativeEditLink,
+  },
+});
 
 /**
  * Frontend plugin for Docs Studio.
@@ -23,5 +78,8 @@ import { createFrontendPlugin } from '@backstage/frontend-plugin-api';
  */
 export const docsStudioPlugin = createFrontendPlugin({
   pluginId: 'docs-studio',
-  extensions: [],
+  extensions: [api, page, toolbarAddon, hideEditAddon],
+  routes: {
+    root: rootRouteRef,
+  },
 });
