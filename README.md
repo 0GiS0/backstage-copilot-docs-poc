@@ -48,6 +48,8 @@ flowchart LR
 
 Docs Studio es un conjunto de plugins de Backstage que permite **leer, editar, proponer cambios y crear páginas** de TechDocs a personas que **no tienen cuenta ni licencia de GitHub** (inician sesión con Microsoft Entra ID). Una **GitHub App** convierte cada propuesta en una rama y una _pull request_; el autor del commit es el usuario de Backstage y el _committer_ es el bot de la App.
 
+La historia completa de la demo (de Confluence a TechDocs), con la reproducción manual paso a paso para cada persona, está en [`docs/docs-studio/guia-demo.md`](docs/docs-studio/guia-demo.md). El diagrama del flujo está en [`docs/docs-studio/flujo-demo.md`](docs/docs-studio/flujo-demo.md).
+
 | Paquete                                                                | Contenido                                                                            |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | [`plugins/docs-studio`](plugins/docs-studio/README.md)                 | Frontend: addons de TechDocs, editor Markdown/WYSIWYG, lista y detalle de propuestas |
@@ -84,7 +86,7 @@ Los pasos detallados, con los comandos de cada script, están en [`scripts/docs-
 1. (Opcional) Identificar usuarios de Entra sin licencia: `list-entra-unlicensed.mjs` (solo lectura).
 2. Generar el contenido del repositorio de documentación: `seed-playground.mjs`.
 3. Crear el repositorio privado `AgenticOrganization/docs-studio-playground` y subir el contenido.
-4. Crear la GitHub App (`create-github-app.mjs`) e instalarla **solo** en el repositorio del playground.
+4. Crear la GitHub App (`create-github-app.mjs`) e instalarla en el repositorio del playground. En la demo está instalada en **todos** los repositorios de la organización, por decisión deliberada; Docs Studio solo actúa en los de `docsStudio.allowedRepositories`.
 5. Aplicar el ruleset que exige el estado `docs-studio/approval` (`apply-ruleset.mjs`).
 6. Configurar Backstage: `app-config.local.yaml`, `.env` y `examples/docs-studio/org.local.yaml`, y arrancar con `./scripts/start.sh`.
 
@@ -193,7 +195,7 @@ Entidades del repositorio [`AgenticOrganization/docs-studio-playground`](https:/
 4. **Aprobar**: Arya no puede aprobar su propia propuesta (cuatro ojos). Entra como **Samwell** (propietario de `engineering-handbook`), abre la propuesta en _Pendientes de mi aprobación_, revisa los cambios y pulsa _Aprobar_. Se publica el estado `docs-studio/approval` y, como `autoMergeOnApproval` está activo, la PR se fusiona con un _merge commit_.
 5. **Ver en TechDocs**: tras el merge TechDocs reconstruye la página y el cambio aparece en _Rollback Procedure_ (la sincronización puede tardar hasta un minuto). Busca `rollback` en **Search** para ver el resultado indexado.
 6. **Entidad restringida**: abre `security-handbook`. Como Arya no aparece (ni en el catálogo, ni en TechDocs, ni en Search); como **Sansa** (`security-team`) sí.
-7. **Copilot Chat** (con **Jon** o **Samwell**, iniciando sesión con GitHub): pregunta _What is the rollback procedure?_ o _What are the severity levels?_. El agente llama a `search.query` sobre TechDocs y responde con un apartado **Sources** que enlaza a la página de TechDocs. Con Arya el chat aparece deshabilitado.
+7. **Copilot Chat** (con **Jon**, que inicia sesión con Microsoft y la primera vez conecta su cuenta de GitHub desde el chat): pregunta _What is the rollback procedure?_ o _What are the severity levels?_. El agente llama a `search.query` sobre TechDocs y responde con un apartado **Sources** que enlaza a la página de TechDocs. Con Arya el chat aparece deshabilitado.
 
 ## Limitaciones conocidas
 
@@ -203,8 +205,8 @@ Entidades del repositorio [`AgenticOrganization/docs-studio-playground`](https:/
 - **TechDocs en local, sin Docker** (`techdocs.generator.runIn: local`).
 - **Safari/WebKit en `http://localhost`**: Backstage emite la cookie `backstage-auth` como `Secure; SameSite=None` cuando el host es `localhost`. WebKit la descarta en HTTP, así que los recursos estáticos de TechDocs devuelven 401 y la página se queda cargando. Usa Chrome o Edge en local, o HTTPS.
 - **MCP actions del chat**: el backend del chat llama a las MCP actions con un token emitido en nombre del usuario que ha iniciado sesión, así que la política de permisos se aplica también a lo que el asistente puede leer. `backend.actions.filter` solo expone acciones `readOnly`.
-- **Chat**: requiere iniciar sesión con GitHub (no funciona como Guest) y una licencia de Copilot. Para las personas sin licencia (solo Entra ID) está **deshabilitado**; usar una clave propia (BYOK) es un siguiente paso.
+- **Chat**: requiere una cuenta de GitHub conectada (inicio de sesión con GitHub, o conectarla desde el chat tras entrar con Microsoft; no funciona como Guest) y una licencia de Copilot. Para las personas sin licencia (solo Entra ID) está **deshabilitado**; usar una clave propia (BYOK) es un siguiente paso.
 - **Sección restringida en GitHub**: la restricción solo se aplica en Backstage. En GitHub, el contenido de `security-handbook` lo puede leer cualquier miembro de la organización (el permiso base de la organización es _read_).
 - **Estados con retraso**: no hay _webhooks_ en local, así que los cambios hechos en GitHub (PR fusionadas o cerradas, ramas que avanzan, estados) tardan hasta 1 minuto en reflejarse en Backstage (tarea `docs-studio-sync`).
-- **Commits «Verified»**: no se ha verificado que los commits creados por la GitHub App aparezcan como _Verified_ en GitHub (el backend no los firma él mismo).
+- **Commits sin firmar**: los commits que crea la GitHub App con la persona de Backstage como autora salen **sin firmar** en GitHub (`unsigned`). Los commits hechos en el editor web de GitHub sí salen _Verified_. Si la organización exige commits firmados, este camino necesita otro diseño.
 - **Alertas de GFM**: las alertas de GitHub (`> [!NOTE]`, etc.) pueden verse como citas (_blockquotes_) en TechDocs, porque MkDocs no las interpreta.
