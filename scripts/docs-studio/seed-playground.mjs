@@ -433,7 +433,14 @@ report.broken.forEach(b => console.log(`    ! ${b}`));
 if (args.push) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(args.push)) fail('--push expects owner/repo.');
   const remote = `https://github.com/${args.push}.git`;
-  const credential = 'credential.helper=!gh auth git-credential';
+  // An empty helper resets any global ones (e.g. osxkeychain) so the push uses
+  // the gh account (or GH_TOKEN) instead of cached credentials.
+  const credential = [
+    '-c',
+    'credential.helper=',
+    '-c',
+    'credential.helper=!gh auth git-credential',
+  ];
   const steps = [
     ['git', ['init', '-b', 'main']],
     ['git', ['add', '-A']],
@@ -446,7 +453,7 @@ if (args.push) {
       ],
     ],
     ['git', ['remote', 'add', 'origin', remote]],
-    ['git', ['-c', credential, 'push', '-u', 'origin', 'main']],
+    ['git', [...credential, 'push', '-u', 'origin', 'main']],
   ];
   if (!args.apply) {
     console.log(`\n[dry-run] Would run in ${outDir}:`);
