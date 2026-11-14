@@ -188,6 +188,8 @@ All keys are optional and live under `docsStudio`. They match `config.d.ts`.
 
 ```yaml
 docsStudio:
+  allowedRepositories: # recommended, see below
+    - my-org/handbook
   requiredApprovals: 1 # approvals needed for the current head commit
   autoMergeOnApproval: true # merge as soon as the threshold is met
   statusContext: docs-studio/approval # commit status context
@@ -201,17 +203,18 @@ docsStudio:
     frequency: { minutes: 1 } # refresh and external PR import
 ```
 
-| Key                              | Default                | Description                                                                                                                                                                                                    |
-| -------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docsStudio.requiredApprovals`   | `1`                    | Approvals needed, for the current head commit, before a proposal is `approved`. Must be an integer of 1 or more.                                                                                               |
-| `docsStudio.autoMergeOnApproval` | `true`                 | Merge the pull request as soon as it is approved. With `false` an approver has to publish (merge) it from the proposal page.                                                                                   |
-| `docsStudio.statusContext`       | `docs-studio/approval` | Context of the commit status. It must match the status required by the ruleset.                                                                                                                                |
-| `docsStudio.branchPrefix`        | `docs-studio`          | Prefix of the proposal branches: `<prefix>/<entity-name>/<page>-<id>`. A relative path without `..` or hidden segments.                                                                                        |
-| `docsStudio.assetsDir`           | `attachments`          | Directory for uploaded assets, relative to the docs dir (no `..` or hidden segments).                                                                                                                          |
-| `docsStudio.maxAssetSizeMb`      | `5`                    | Maximum size of one uploaded asset, in MB. Must be greater than 0. It also sets the limit of the request body.                                                                                                 |
-| `docsStudio.committer.name`      | GitHub App bot         | Committer name for commits made through the Git Data API. `name` and `email` must be set together, otherwise the plugin fails at startup.                                                                      |
-| `docsStudio.committer.email`     | GitHub App bot         | Committer email, see above.                                                                                                                                                                                    |
-| `docsStudio.sync.frequency`      | `{ minutes: 1 }`       | How often the sync task runs. A cron expression (`{ cron: '*/5 * * * *' }`), a duration string (`'PT5M'`) or an object with `years`, `months`, `weeks`, `days`, `hours`, `minutes`, `seconds`, `milliseconds`. |
+| Key                              | Default                | Description                                                                                                                                                                                                                                                                        |
+| -------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docsStudio.allowedRepositories` | every repository       | Repositories Docs Studio may read from and write to: `owner/repo` (github.com) or `host/owner/repo`, case-insensitive. Any other repository is refused before GitHub is called, even when the GitHub App installation covers it. When unset, the plugin logs a warning at startup. |
+| `docsStudio.requiredApprovals`   | `1`                    | Approvals needed, for the current head commit, before a proposal is `approved`. Must be an integer of 1 or more.                                                                                                                                                                   |
+| `docsStudio.autoMergeOnApproval` | `true`                 | Merge the pull request as soon as it is approved. With `false` an approver has to publish (merge) it from the proposal page.                                                                                                                                                       |
+| `docsStudio.statusContext`       | `docs-studio/approval` | Context of the commit status. It must match the status required by the ruleset.                                                                                                                                                                                                    |
+| `docsStudio.branchPrefix`        | `docs-studio`          | Prefix of the proposal branches: `<prefix>/<entity-name>/<page>-<id>`. A relative path without `..` or hidden segments.                                                                                                                                                            |
+| `docsStudio.assetsDir`           | `attachments`          | Directory for uploaded assets, relative to the docs dir (no `..` or hidden segments).                                                                                                                                                                                              |
+| `docsStudio.maxAssetSizeMb`      | `5`                    | Maximum size of one uploaded asset, in MB. Must be greater than 0. It also sets the limit of the request body.                                                                                                                                                                     |
+| `docsStudio.committer.name`      | GitHub App bot         | Committer name for commits made through the Git Data API. `name` and `email` must be set together, otherwise the plugin fails at startup.                                                                                                                                          |
+| `docsStudio.committer.email`     | GitHub App bot         | Committer email, see above.                                                                                                                                                                                                                                                        |
+| `docsStudio.sync.frequency`      | `{ minutes: 1 }`       | How often the sync task runs. A cron expression (`{ cron: '*/5 * * * *' }`), a duration string (`'PT5M'`) or an object with `years`, `months`, `weeks`, `days`, `hours`, `minutes`, `seconds`, `milliseconds`.                                                                     |
 
 Other configuration that the plugin reads: `app.baseUrl` (required),
 `integrations.github` and the database of the `docs-studio` plugin.

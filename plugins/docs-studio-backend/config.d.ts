@@ -17,6 +17,13 @@
 export interface Config {
   docsStudio?: {
     /**
+     * Repositories Docs Studio may read from and write to, as `owner/repo`
+     * (github.com) or `host/owner/repo`. Calls on any other repository are
+     * refused, even when the GitHub App installation covers it. When unset,
+     * every repository the GitHub credentials can reach is allowed.
+     */
+    allowedRepositories?: string[];
+    /**
      * Number of approvals, for the current head commit, needed before a
      * proposal is marked as approved.
      * @default 1

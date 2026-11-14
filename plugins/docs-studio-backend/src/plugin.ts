@@ -34,6 +34,10 @@ import {
 } from './extensions';
 import { GithubGateway } from './github/gateway';
 import { OctokitGithubGateway } from './github/octokitGateway';
+import {
+  RepositoryAllowlist,
+  RepositoryGuardGateway,
+} from './github/repositoryGuard';
 import { createRouter } from './router';
 import { IdentityResolver } from './service/identity';
 import { ProposalService } from './service/ProposalService';
@@ -98,7 +102,20 @@ export const docsStudioPlugin = createBackendPlugin({
         permissionsRegistry.addPermissions(docsStudioPermissions);
 
         const settings = readSettings(config);
-        const github = gateway ?? OctokitGithubGateway.fromConfig(config);
+        const baseGateway = gateway ?? OctokitGithubGateway.fromConfig(config);
+        const allowlist = RepositoryAllowlist.fromConfig(config);
+        if (allowlist) {
+          logger.info(
+            `Docs Studio limited to ${allowlist.size} repositories (docsStudio.allowedRepositories)`,
+          );
+        } else {
+          logger.warn(
+            'docsStudio.allowedRepositories is not set: Docs Studio acts on every repository its GitHub credentials can reach',
+          );
+        }
+        const github = allowlist
+          ? new RepositoryGuardGateway(baseGateway, allowlist)
+          : baseGateway;
 
         const knex = await database.getClient();
         if (!database.migrations?.skip) {

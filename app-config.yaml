@@ -305,6 +305,10 @@ copilotChat:
 
 # Docs Studio: propose, review and approve docs changes from Backstage
 docsStudio:
+  # The GitHub App may be installed on more repositories; Docs Studio only
+  # touches the ones listed here.
+  allowedRepositories:
+    - AgenticOrganization/docs-studio-playground
   requiredApprovals: 1
   autoMergeOnApproval: true
   statusContext: docs-studio/approval
