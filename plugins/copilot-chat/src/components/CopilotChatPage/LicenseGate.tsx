@@ -14,7 +14,7 @@ import { Typography } from '@material-ui/core';
 const GITHUB_USER_LOGIN_ANNOTATION = 'github.com/user-login';
 
 export const UNLICENSED_MESSAGE =
-  'El chat requiere una licencia de GitHub Copilot. Pide acceso a tu administrador.';
+  'Chat requires a GitHub Copilot license. Ask your administrator for access.';
 
 type LicenseState = 'loading' | 'licensed' | 'unlicensed';
 
@@ -91,7 +91,7 @@ export const LicenseGate = ({ children }: { children: ReactNode }) => {
     <Page themeId="tool">
       <Header
         title="Copilot Chat"
-        subtitle="Pregunta a la documentación de ingeniería"
+        subtitle="Ask the engineering docs, powered by the GitHub Copilot SDK"
       />
       <Content>
         {license === 'loading' ? (
