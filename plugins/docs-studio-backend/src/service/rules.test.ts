@@ -24,6 +24,7 @@ import {
   computeCommitAuthor,
   currentApprovals,
   failureDescription,
+  pullRequestTitle,
 } from './rules';
 
 const approval = (user: string, sha: string): ProposalApproval => ({
@@ -131,5 +132,19 @@ describe('metadata block', () => {
     expect(encoded.slice(4, -4)).not.toContain('-->');
     expect(decodeMetadata(`Some text\n\n${encoded}\n`)).toEqual(metadata);
     expect(decodeMetadata('no metadata here')).toBeUndefined();
+  });
+});
+
+describe('pullRequestTitle', () => {
+  it('adds the docs type only when the title has no Conventional Commits type', () => {
+    expect(pullRequestTitle('Explain glossary terms')).toBe(
+      'docs: Explain glossary terms',
+    );
+    expect(pullRequestTitle('docs: explain glossary terms')).toBe(
+      'docs: explain glossary terms',
+    );
+    expect(pullRequestTitle('fix(onboarding)!: correct a link')).toBe(
+      'fix(onboarding)!: correct a link',
+    );
   });
 });

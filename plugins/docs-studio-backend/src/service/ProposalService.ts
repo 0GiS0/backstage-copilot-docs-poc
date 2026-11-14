@@ -92,6 +92,7 @@ import {
   failureDescription,
   isAuthor,
   pendingDescription,
+  pullRequestTitle,
   successDescription,
 } from './rules';
 import {
@@ -907,7 +908,7 @@ export class ProposalService {
       const authors = [author];
       const proposalUrl = this.proposalUrl(id);
       const pr = await this.gateway.createPullRequest(repo, {
-        title: `docs: ${title}`,
+        title: pullRequestTitle(title),
         body: buildPullRequestBody({
           description: request.description,
           authors: authors.map(publicAuthor),

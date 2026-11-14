@@ -143,6 +143,14 @@ export function buildCommitMessage(
   return trailers.length > 0 ? `${body}\n\n${trailers.join('\n')}` : body;
 }
 
+/** Pull request title; keeps a Conventional Commits type the user already typed. */
+export function pullRequestTitle(title: string): string {
+  const trimmed = title.trim();
+  return /^[a-z]+(\([^)]*\))?!?:\s/i.test(trimmed)
+    ? trimmed
+    : `docs: ${trimmed}`;
+}
+
 function clip(text: string): string {
   return text.length <= 140 ? text : `${text.slice(0, 137)}...`;
 }
