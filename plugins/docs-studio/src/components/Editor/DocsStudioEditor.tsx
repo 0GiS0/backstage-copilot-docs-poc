@@ -39,6 +39,7 @@ import {
   splitFrontmatter,
   yamlError,
 } from './frontmatter';
+import { useStableId } from '../common/useStableId';
 import { FrontmatterPanel } from './FrontmatterPanel';
 import { editorStrings } from './strings';
 import { EditorToolbar } from './Toolbar';
@@ -66,8 +67,6 @@ export interface DocsStudioEditorHandle {
 }
 
 type Mode = 'visual' | 'markdown';
-
-let instanceCounter = 0;
 
 const useStyles = makeStyles(theme => ({
   root: { display: 'flex', flexDirection: 'column', gap: theme.spacing(1) },
@@ -166,12 +165,7 @@ export const DocsStudioEditor = forwardRef<
 >(function DocsStudioEditorImpl(props, ref) {
   const { initialMarkdown, readOnly = false } = props;
   const classes = useStyles();
-  const idRef = useRef<string>();
-  if (!idRef.current) {
-    instanceCounter += 1;
-    idRef.current = `docs-studio-editor-${instanceCounter}`;
-  }
-  const idPrefix = idRef.current;
+  const idPrefix = useStableId('docs-studio-editor');
 
   const propsRef = useRef(props);
   propsRef.current = props;

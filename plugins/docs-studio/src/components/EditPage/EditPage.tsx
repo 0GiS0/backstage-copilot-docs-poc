@@ -35,6 +35,7 @@ import { useDocsStudioPaths } from '../../hooks/useDocsStudioPaths';
 import { strings } from '../../strings';
 import { DocsStudioEditor } from '../Editor';
 import type { DocsStudioEditorChange, DocsStudioEditorHandle } from '../Editor';
+import { useStableId } from '../common/useStableId';
 import { ConflictDialog } from './ConflictDialog';
 import { useEditorAssets } from './useEditorAssets';
 
@@ -55,6 +56,7 @@ function EditView({ page, proposalId, onReload }: EditViewProps) {
   const paths = useDocsStudioPaths();
   const navigate = useNavigate();
   const editorRef = useRef<DocsStudioEditorHandle>(null);
+  const messageId = useStableId('docs-studio-edit-message');
   const [change, setChange] = useState<DocsStudioEditorChange>({
     markdown: page.content,
     dirty: false,
@@ -162,6 +164,7 @@ function EditView({ page, proposalId, onReload }: EditViewProps) {
         </Typography>
       )}
       <TextField
+        id={messageId}
         variant="outlined"
         size="small"
         fullWidth

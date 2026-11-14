@@ -56,6 +56,7 @@ import {
   StatusChip,
 } from '../common/chips';
 import { DiffView } from '../common/DiffView';
+import { useStableId } from '../common/useStableId';
 
 const useStyles = makeStyles(theme => ({
   header: { marginBottom: theme.spacing(2) },
@@ -118,6 +119,7 @@ function ProposalDetailView(props: { id: string }) {
   const [changesDialogOpen, setChangesDialogOpen] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
   const [comment, setComment] = useState('');
+  const commentId = useStableId('docs-studio-request-changes-comment');
 
   const proposal = updated ?? value;
 
@@ -389,6 +391,7 @@ function ProposalDetailView(props: { id: string }) {
             minRows={3}
             fullWidth
             variant="outlined"
+            id={commentId}
             label={strings.detail.requestChangesComment}
             helperText={strings.detail.requestChangesHelp}
             value={comment}

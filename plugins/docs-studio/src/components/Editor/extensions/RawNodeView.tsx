@@ -28,6 +28,7 @@ import IconButton from '@material-ui/core/IconButton';
 import TextField from '@material-ui/core/TextField';
 import Tooltip from '@material-ui/core/Tooltip';
 import EditIcon from '@material-ui/icons/Edit';
+import { useStableId } from '../../common/useStableId';
 import { editorStrings } from '../strings';
 
 const useStyles = makeStyles(theme => ({
@@ -77,6 +78,7 @@ export function RawNodeView(props: NodeViewProps & { inline: boolean }) {
   const kind = String(node.attrs.kind ?? 'html');
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(raw);
+  const draftId = useStableId('docs-studio-raw-block');
   const strings = editorStrings.rawBlock;
 
   const edit = editor.isEditable ? (
@@ -121,6 +123,7 @@ export function RawNodeView(props: NodeViewProps & { inline: boolean }) {
             fullWidth
             variant="outlined"
             minRows={4}
+            id={draftId}
             label={strings.dialogLabel}
             value={draft}
             onChange={event => setDraft(event.target.value)}

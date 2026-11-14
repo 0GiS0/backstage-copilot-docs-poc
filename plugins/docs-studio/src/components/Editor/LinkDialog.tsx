@@ -21,6 +21,7 @@ import DialogActions from '@material-ui/core/DialogActions';
 import DialogContent from '@material-ui/core/DialogContent';
 import DialogTitle from '@material-ui/core/DialogTitle';
 import TextField from '@material-ui/core/TextField';
+import { useStableId } from '../common/useStableId';
 import { editorStrings } from './strings';
 
 export interface LinkDialogProps {
@@ -35,6 +36,7 @@ export interface LinkDialogProps {
 export function LinkDialog(props: LinkDialogProps) {
   const { open, initialHref, hasLink, onClose, onApply, onRemove } = props;
   const [href, setHref] = useState(initialHref);
+  const urlId = useStableId('docs-studio-link-url');
   const strings = editorStrings.linkDialog;
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export function LinkDialog(props: LinkDialogProps) {
       <DialogTitle>{strings.title}</DialogTitle>
       <DialogContent>
         <TextField
+          id={urlId}
           fullWidth
           label={strings.urlLabel}
           value={href}

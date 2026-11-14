@@ -31,6 +31,7 @@ import { dirname, isValidMarkdownPath, slugify } from '../../utils/paths';
 import { DocsStudioEditor } from '../Editor';
 import type { DocsStudioEditorChange, DocsStudioEditorHandle } from '../Editor';
 import { useEditorAssets } from '../EditPage/useEditorAssets';
+import { useStableId } from '../common/useStableId';
 
 const useStyles = makeStyles(theme => ({
   stack: { display: 'flex', flexDirection: 'column', gap: theme.spacing(2) },
@@ -53,6 +54,7 @@ function NewPageForm(props: { entityRef: string; parentPath: string }) {
   const navigate = useNavigate();
   const editorRef = useRef<DocsStudioEditorHandle>(null);
   const parentDir = dirname(parentPath);
+  const idPrefix = useStableId('docs-studio-new-page');
 
   const [title, setTitle] = useState('');
   const [seedTitle, setSeedTitle] = useState('');
@@ -138,6 +140,7 @@ function NewPageForm(props: { entityRef: string; parentPath: string }) {
             fullWidth
             variant="outlined"
             size="small"
+            id={`${idPrefix}-title`}
             label={strings.create.titleLabel}
             value={title}
             onChange={event => onTitleChange(event.target.value)}
@@ -151,6 +154,7 @@ function NewPageForm(props: { entityRef: string; parentPath: string }) {
             fullWidth
             variant="outlined"
             size="small"
+            id={`${idPrefix}-file`}
             label={strings.create.fileNameLabel}
             helperText={fileError ?? strings.create.fileNameHelp}
             error={Boolean(fileError)}
@@ -166,6 +170,7 @@ function NewPageForm(props: { entityRef: string; parentPath: string }) {
             fullWidth
             variant="outlined"
             size="small"
+            id={`${idPrefix}-parent`}
             label={strings.create.parentLabel}
             helperText={strings.create.parentHelp}
             value={parent}

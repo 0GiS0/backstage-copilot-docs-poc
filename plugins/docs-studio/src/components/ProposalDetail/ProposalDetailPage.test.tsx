@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { renderInTestApp } from '@backstage/frontend-test-utils';
 import type { ProposalDetail } from '@internal/backstage-plugin-docs-studio-common';
 import { docsStudioApiRef } from '../../api';
@@ -91,5 +91,17 @@ describe('ProposalDetailView', () => {
       await screen.findByRole('button', { name: strings.detail.approve }),
     ).toBeEnabled();
     expect(screen.queryByText(/github/i)).not.toBeInTheDocument();
+  });
+
+  it('labels the request-changes comment field', async () => {
+    await renderDetail({ canApprove: true });
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: strings.detail.requestChanges,
+      }),
+    );
+    expect(
+      await screen.findByLabelText(strings.detail.requestChangesComment),
+    ).toBeInTheDocument();
   });
 });
