@@ -4,7 +4,10 @@ Prueba de concepto de un portal de desarrolladores con [Backstage](https://backs
 
 1. **Publica como TechDocs** la documentación de un equipo migrada de Confluence a Markdown y alojada en otro repositorio de GitHub ([`0GiS0/confluence-to-github-poc`](https://github.com/0GiS0/confluence-to-github-poc), privado). Ese repositorio no se modifica: se registra en el catálogo con una _location_ de tipo URL.
 2. **Indexa esa documentación en Search** (colectores de catálogo y de TechDocs).
-3. **Añade un chat con el GitHub Copilot SDK** que responde preguntas sobre el handbook usando las _MCP actions_ de Backstage (`search.query`, acciones de catálogo y de TechDocs) y **cita la página de origen**.
+3. **Añade un chat con el Microsoft Copilot SDK (antes GitHub Copilot SDK)** que responde preguntas sobre el handbook usando las _MCP actions_ de Backstage (`search.query`, acciones de catálogo y de TechDocs) y **cita la página de origen**.
+
+> [!NOTE]
+> El 28 de octubre de 2026 GitHub [anunció](https://github.blog/changelog/2026-10-28-github-copilot-sdk-is-becoming-microsoft-copilot-sdk/) que el **GitHub Copilot SDK** pasa a llamarse **Microsoft Copilot SDK**. El paquete de npm sigue siendo `@github/copilot-sdk`.
 
 ## Arquitectura
 
@@ -25,7 +28,7 @@ flowchart LR
   docs[(GitHub<br/>0GiS0/confluence-to-github-poc)] -- catalog-info.yaml + mkdocs.yml --> catalog
   docs -- Markdown --> techdocs
   techdocs --> search
-  chat -- Copilot SDK --> copilot[(GitHub Copilot)]
+  chat -- Microsoft Copilot SDK --> copilot[(GitHub Copilot)]
   copilot -. tool calls .-> chat
   chat -- token estático --> mcp
   mcp --> search
@@ -34,18 +37,18 @@ flowchart LR
 ```
 
 - `plugins/copilot-chat`: página de chat del frontend (nuevo _frontend system_), con selector de modelo y sugerencias.
-- `plugins/copilot-chat-backend`: endpoint SSE `/api/copilot-chat/chat` que crea una sesión del Copilot SDK con el token de GitHub del usuario y le da como herramientas las _MCP actions_ de Backstage.
+- `plugins/copilot-chat-backend`: endpoint SSE `/api/copilot-chat/chat` que crea una sesión del Microsoft Copilot SDK con el token de GitHub del usuario y le da como herramientas las _MCP actions_ de Backstage.
 - `packages/backend/src/modules/techdocsRootIndex.ts`: genera una página de inicio de TechDocs cuando el `docs_dir` del repositorio de documentación no tiene `index.md`.
 
 ## Versiones
 
-| Componente                  | Versión                          |
-| --------------------------- | -------------------------------- |
-| Backstage                   | 1.56.0 (nuevo _frontend system_) |
-| Node.js                     | 24                               |
-| Yarn                        | 4.13.0                           |
-| `@github/copilot-sdk`       | 1.0.29                           |
-| Modelo por defecto del chat | `claude-haiku-4.5`               |
+| Componente                                                              | Versión                          |
+| ----------------------------------------------------------------------- | -------------------------------- |
+| Backstage                                                               | 1.56.0 (nuevo _frontend system_) |
+| Node.js                                                                 | 24                               |
+| Yarn                                                                    | 4.13.0                           |
+| `@github/copilot-sdk` (Microsoft Copilot SDK, antes GitHub Copilot SDK) | 1.0.29                           |
+| Modelo por defecto del chat                                             | `claude-haiku-4.5`               |
 
 ## Requisitos previos
 
