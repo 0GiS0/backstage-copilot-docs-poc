@@ -1,0 +1,61 @@
+# Dependabot configuration.
+# Docs: https://docs.github.com/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+version: 2
+updates:
+  # Yarn 4 workspaces (packages/* and plugins/*) are resolved from the root
+  # package.json and yarn.lock.
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'Europe/Madrid'
+    # Mirrors `npmMinimalAgeGate: 3d` in .yarnrc.yml, which Dependabot does not
+    # read. Cooldown only applies to version updates, never to security updates.
+    cooldown:
+      default-days: 3
+    labels:
+      - '📦 dependencies'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    groups:
+      # Backstage packages are released together and must be bumped together.
+      # For full upgrades (backstage.json, template changes) run
+      # `yarn backstage-cli versions:bump` instead.
+      backstage:
+        patterns:
+          - '@backstage/*'
+      npm-minor-patch:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+      security:
+        applies-to: 'security-updates'
+        patterns:
+          - '*'
+
+  - package-ecosystem: 'docker'
+    directory: '/packages/backend'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'Europe/Madrid'
+    cooldown:
+      default-days: 3
+    labels:
+      - '📦 dependencies'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    ignore:
+      # The Node major must change together with `engines` in package.json and
+      # the Node version used for host builds, so it is upgraded manually.
+      # Dependabot still refreshes the pinned digest of the current tag.
+      - dependency-name: 'node'
+        update-types:
+          - 'version-update:semver-major'

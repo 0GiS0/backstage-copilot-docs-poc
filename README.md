@@ -114,6 +114,38 @@ yarn build:backend
 3. **Search**: busca `rollback`. Los resultados de TechDocs aparecen cuando el colector ha indexado (se ejecuta cada minuto).
 4. **Copilot Chat**: pregunta _What is the rollback procedure?_ o _What are the severity levels?_. El agente llama a `search.query` sobre TechDocs y responde con un apartado **Sources** que enlaza a la página de TechDocs.
 
+## Dependencias y Dependabot
+
+Dependabot está configurado en `.github/dependabot.yml` y revisa las dependencias cada lunes a las 06:00 (hora de Madrid):
+
+- `npm` en la raíz: cubre todos los workspaces de Yarn 4 (`packages/*` y `plugins/*`) a través de `yarn.lock`.
+- `docker`: la imagen base de `packages/backend/Dockerfile`.
+
+Las actualizaciones se agrupan para reducir el número de PRs:
+
+| Grupo             | Qué incluye                                                              |
+| ----------------- | ------------------------------------------------------------------------ |
+| `backstage`       | Todos los paquetes `@backstage/*` en una única PR                        |
+| `npm-minor-patch` | Versiones minor y patch del resto de dependencias                        |
+| `security`        | Actualizaciones de seguridad, agrupadas                                  |
+| Sin grupo         | Las major de paquetes que no son de Backstage llegan en PRs individuales |
+
+Las PRs llevan la etiqueta `📦 dependencies` y los commits usan `chore(deps): …` o `chore(deps-dev): …`.
+
+Hay un `cooldown` de 3 días para las actualizaciones de versión, alineado con `npmMinimalAgeGate: 3d` de `.yarnrc.yml` (Dependabot no lee esa opción; ver [dependabot-core#14134](https://github.com/dependabot/dependabot-core/issues/14134)). Las actualizaciones de seguridad no esperan.
+
+Para subir Backstage completo no basta con la PR agrupada, porque solo cambia versiones de paquetes. Una subida completa (incluye `backstage.json` y cambios de plantilla) se hace con:
+
+```bash
+yarn backstage-cli versions:bump
+```
+
+Muchas alertas de seguridad no generan PR porque Backstage fija dependencias transitivas vulnerables (por ejemplo, `@backstage/cli` → `undici`) y Dependabot marca `security_update_not_possible`. Se corrigen al subir la versión de Backstage.
+
+La imagen `node:24-trixie-slim` va fijada por digest. Dependabot abre PRs cuando cambia el digest (parches de Node y del sistema). Las versiones major de Node se ignoran porque deben cambiar a la vez que `engines` en `package.json` y que la versión de Node del host.
+
+Para descartar una actualización concreta, comenta en la PR `@dependabot ignore this major version` (o `@dependabot ignore this minor version` / `@dependabot ignore this dependency`).
+
 ## Limitaciones conocidas
 
 - **Inicio de sesión con redirección**: se usa `enableExperimentalRedirectFlow` en lugar del popup de OAuth.
