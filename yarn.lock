@@ -5020,75 +5020,76 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@github/copilot-sdk-darwin-arm64@npm:1.0.29":
-  version: 1.0.29
-  resolution: "@github/copilot-sdk-darwin-arm64@npm:1.0.29"
+"@github/copilot-sdk-darwin-arm64@npm:1.0.34":
+  version: 1.0.34
+  resolution: "@github/copilot-sdk-darwin-arm64@npm:1.0.34"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@github/copilot-sdk-darwin-x64@npm:1.0.29":
-  version: 1.0.29
-  resolution: "@github/copilot-sdk-darwin-x64@npm:1.0.29"
+"@github/copilot-sdk-darwin-x64@npm:1.0.34":
+  version: 1.0.34
+  resolution: "@github/copilot-sdk-darwin-x64@npm:1.0.34"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@github/copilot-sdk-linux-arm64@npm:1.0.29":
-  version: 1.0.29
-  resolution: "@github/copilot-sdk-linux-arm64@npm:1.0.29"
+"@github/copilot-sdk-linux-arm64@npm:1.0.34":
+  version: 1.0.34
+  resolution: "@github/copilot-sdk-linux-arm64@npm:1.0.34"
   conditions: os=linux & cpu=arm64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@github/copilot-sdk-linux-x64@npm:1.0.29":
-  version: 1.0.29
-  resolution: "@github/copilot-sdk-linux-x64@npm:1.0.29"
+"@github/copilot-sdk-linux-x64@npm:1.0.34":
+  version: 1.0.34
+  resolution: "@github/copilot-sdk-linux-x64@npm:1.0.34"
   conditions: os=linux & cpu=x64 & libc=glibc
   languageName: node
   linkType: hard
 
-"@github/copilot-sdk-linuxmusl-arm64@npm:1.0.29":
-  version: 1.0.29
-  resolution: "@github/copilot-sdk-linuxmusl-arm64@npm:1.0.29"
+"@github/copilot-sdk-linuxmusl-arm64@npm:1.0.34":
+  version: 1.0.34
+  resolution: "@github/copilot-sdk-linuxmusl-arm64@npm:1.0.34"
   conditions: os=linux & cpu=arm64 & libc=musl
   languageName: node
   linkType: hard
 
-"@github/copilot-sdk-linuxmusl-x64@npm:1.0.29":
-  version: 1.0.29
-  resolution: "@github/copilot-sdk-linuxmusl-x64@npm:1.0.29"
+"@github/copilot-sdk-linuxmusl-x64@npm:1.0.34":
+  version: 1.0.34
+  resolution: "@github/copilot-sdk-linuxmusl-x64@npm:1.0.34"
   conditions: os=linux & cpu=x64 & libc=musl
   languageName: node
   linkType: hard
 
-"@github/copilot-sdk-win32-arm64@npm:1.0.29":
-  version: 1.0.29
-  resolution: "@github/copilot-sdk-win32-arm64@npm:1.0.29"
+"@github/copilot-sdk-win32-arm64@npm:1.0.34":
+  version: 1.0.34
+  resolution: "@github/copilot-sdk-win32-arm64@npm:1.0.34"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
 
-"@github/copilot-sdk-win32-x64@npm:1.0.29":
-  version: 1.0.29
-  resolution: "@github/copilot-sdk-win32-x64@npm:1.0.29"
+"@github/copilot-sdk-win32-x64@npm:1.0.34":
+  version: 1.0.34
+  resolution: "@github/copilot-sdk-win32-x64@npm:1.0.34"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
-"@github/copilot-sdk@npm:^1.0.0":
-  version: 1.0.29
-  resolution: "@github/copilot-sdk@npm:1.0.29"
+"@github/copilot-sdk@npm:^1.0.34":
+  version: 1.0.34
+  resolution: "@github/copilot-sdk@npm:1.0.34"
   dependencies:
-    "@github/copilot-sdk-darwin-arm64": "npm:1.0.29"
-    "@github/copilot-sdk-darwin-x64": "npm:1.0.29"
-    "@github/copilot-sdk-linux-arm64": "npm:1.0.29"
-    "@github/copilot-sdk-linux-x64": "npm:1.0.29"
-    "@github/copilot-sdk-linuxmusl-arm64": "npm:1.0.29"
-    "@github/copilot-sdk-linuxmusl-x64": "npm:1.0.29"
-    "@github/copilot-sdk-win32-arm64": "npm:1.0.29"
-    "@github/copilot-sdk-win32-x64": "npm:1.0.29"
-    koffi: "npm:3.3.4"
+    "@github/copilot-sdk-darwin-arm64": "npm:1.0.34"
+    "@github/copilot-sdk-darwin-x64": "npm:1.0.34"
+    "@github/copilot-sdk-linux-arm64": "npm:1.0.34"
+    "@github/copilot-sdk-linux-x64": "npm:1.0.34"
+    "@github/copilot-sdk-linuxmusl-arm64": "npm:1.0.34"
+    "@github/copilot-sdk-linuxmusl-x64": "npm:1.0.34"
+    "@github/copilot-sdk-win32-arm64": "npm:1.0.34"
+    "@github/copilot-sdk-win32-x64": "npm:1.0.34"
+    koffi: "npm:3.3.6"
+    lossless-json: "npm:4.3.3"
     vscode-jsonrpc: "npm:10.0.0"
     zod: "npm:4.6.7"
   dependenciesMeta:
@@ -5108,7 +5109,7 @@ __metadata:
       optional: true
     "@github/copilot-sdk-win32-x64":
       optional: true
-  checksum: 10c0/eddc48562ac5c1f292e6306b8e3b2844c86642337509c01a187232a94549f0d75f72a9c173fc0fc5c286345ab72f61220720f0b01b29ae5d79f3a07c54d84602
+  checksum: 10c0/971973cbf1f74e1f5bc24c68683d7b6f844ddb15c126c581392f88c10d58a65d87b91113f4a138d539578900ceb2b6638a88a1aff9e864e6873ef3d0bdd53f1b
   languageName: node
   linkType: hard
 
@@ -5482,7 +5483,7 @@ __metadata:
     "@backstage/backend-test-utils": "npm:^1.11.8"
     "@backstage/cli": "npm:^0.36.7"
     "@backstage/errors": "npm:^1.3.2"
-    "@github/copilot-sdk": "npm:^1.0.0"
+    "@github/copilot-sdk": "npm:^1.0.34"
     "@types/express": "npm:^4.17.6"
     "@types/supertest": "npm:^2.0.12"
     express: "npm:^4.14.0"
@@ -5506,7 +5507,7 @@ __metadata:
     "@material-ui/icons": "npm:^4.9.1"
     "@testing-library/jest-dom": "npm:^6.0.0"
     "@testing-library/react": "npm:^14.0.0"
-    "@testing-library/user-event": "npm:^14.0.0"
+    "@testing-library/user-event": "npm:^14.6.13"
     msw: "npm:^2.0.0"
     react: "npm:^16.13.1 || ^17.0.0 || ^18.0.0"
     react-markdown: "npm:^8.0.7"
@@ -6373,142 +6374,142 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@koromix/koffi-android-arm64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-android-arm64@npm:3.3.4"
+"@koromix/koffi-android-arm64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-android-arm64@npm:3.3.6"
   conditions: os=android & cpu=arm64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-android-x64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-android-x64@npm:3.3.4"
+"@koromix/koffi-android-x64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-android-x64@npm:3.3.6"
   conditions: os=android & cpu=x64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-darwin-arm64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-darwin-arm64@npm:3.3.4"
+"@koromix/koffi-darwin-arm64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-darwin-arm64@npm:3.3.6"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-darwin-x64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-darwin-x64@npm:3.3.4"
+"@koromix/koffi-darwin-x64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-darwin-x64@npm:3.3.6"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-freebsd-arm64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-freebsd-arm64@npm:3.3.4"
+"@koromix/koffi-freebsd-arm64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-freebsd-arm64@npm:3.3.6"
   conditions: os=freebsd & cpu=arm64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-freebsd-ia32@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-freebsd-ia32@npm:3.3.4"
+"@koromix/koffi-freebsd-ia32@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-freebsd-ia32@npm:3.3.6"
   conditions: os=freebsd & cpu=ia32
   languageName: node
   linkType: hard
 
-"@koromix/koffi-freebsd-x64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-freebsd-x64@npm:3.3.4"
+"@koromix/koffi-freebsd-x64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-freebsd-x64@npm:3.3.6"
   conditions: os=freebsd & cpu=x64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-linux-arm64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-linux-arm64@npm:3.3.4"
+"@koromix/koffi-linux-arm64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-linux-arm64@npm:3.3.6"
   conditions: os=linux & cpu=arm64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-linux-arm@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-linux-arm@npm:3.3.4"
+"@koromix/koffi-linux-arm@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-linux-arm@npm:3.3.6"
   conditions: os=linux & cpu=arm
   languageName: node
   linkType: hard
 
-"@koromix/koffi-linux-ia32@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-linux-ia32@npm:3.3.4"
+"@koromix/koffi-linux-ia32@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-linux-ia32@npm:3.3.6"
   conditions: os=linux & cpu=ia32
   languageName: node
   linkType: hard
 
-"@koromix/koffi-linux-loong64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-linux-loong64@npm:3.3.4"
+"@koromix/koffi-linux-loong64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-linux-loong64@npm:3.3.6"
   conditions: os=linux & cpu=loong64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-linux-ppc64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-linux-ppc64@npm:3.3.4"
+"@koromix/koffi-linux-ppc64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-linux-ppc64@npm:3.3.6"
   conditions: os=linux & cpu=ppc64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-linux-riscv64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-linux-riscv64@npm:3.3.4"
+"@koromix/koffi-linux-riscv64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-linux-riscv64@npm:3.3.6"
   conditions: os=linux & cpu=riscv64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-linux-x64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-linux-x64@npm:3.3.4"
+"@koromix/koffi-linux-x64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-linux-x64@npm:3.3.6"
   conditions: os=linux & cpu=x64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-openbsd-arm64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-openbsd-arm64@npm:3.3.4"
+"@koromix/koffi-openbsd-arm64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-openbsd-arm64@npm:3.3.6"
   conditions: os=openbsd & cpu=arm64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-openbsd-ia32@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-openbsd-ia32@npm:3.3.4"
+"@koromix/koffi-openbsd-ia32@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-openbsd-ia32@npm:3.3.6"
   conditions: os=openbsd & cpu=ia32
   languageName: node
   linkType: hard
 
-"@koromix/koffi-openbsd-x64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-openbsd-x64@npm:3.3.4"
+"@koromix/koffi-openbsd-x64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-openbsd-x64@npm:3.3.6"
   conditions: os=openbsd & cpu=x64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-win32-arm64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-win32-arm64@npm:3.3.4"
+"@koromix/koffi-win32-arm64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-win32-arm64@npm:3.3.6"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
 
-"@koromix/koffi-win32-ia32@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-win32-ia32@npm:3.3.4"
+"@koromix/koffi-win32-ia32@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-win32-ia32@npm:3.3.6"
   conditions: os=win32 & cpu=ia32
   languageName: node
   linkType: hard
 
-"@koromix/koffi-win32-x64@npm:3.3.4":
-  version: 3.3.4
-  resolution: "@koromix/koffi-win32-x64@npm:3.3.4"
+"@koromix/koffi-win32-x64@npm:3.3.6":
+  version: 3.3.6
+  resolution: "@koromix/koffi-win32-x64@npm:3.3.6"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
@@ -8359,14 +8360,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@playwright/test@npm:^1.32.3":
-  version: 1.64.1
-  resolution: "@playwright/test@npm:1.64.1"
+"@playwright/test@npm:^1.65.1":
+  version: 1.65.1
+  resolution: "@playwright/test@npm:1.65.1"
   dependencies:
-    playwright: "npm:1.64.1"
+    playwright: "npm:1.65.1"
   bin:
     playwright: cli.js
-  checksum: 10c0/0a1a853d76d6c532cafaf0366a5448584b766737ebd39bbd23dc0580f3d3b6ef4c833082af47a792e7fc2501f444debdfaad37a87a76cc5b195f3803fc80ea3c
+  checksum: 10c0/f3c0c6ce1d426c84c2ee370e7b7a81fcd4a7a8eaa9d51a880ec853e98ce437482772a09c58c7fbb4444002b127068f076458bec99cecca60c3b51e9ba93e2cc6
   languageName: node
   linkType: hard
 
@@ -11235,12 +11236,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@testing-library/user-event@npm:^14.0.0":
-  version: 14.6.8
-  resolution: "@testing-library/user-event@npm:14.6.8"
+"@testing-library/user-event@npm:^14.6.13":
+  version: 14.6.13
+  resolution: "@testing-library/user-event@npm:14.6.13"
   peerDependencies:
     "@testing-library/dom": ">=7.21.4"
-  checksum: 10c0/374bbf9f477fdc278f4bf56d6a27f88b1801c90cce9dffc414777dbf33fb1e421efc7341ee169cb286435bb742076a7899bb463c9927d2acca95aafaa5324820
+  checksum: 10c0/29cb1c17275ac8b0be3800fbcbcfd3b87c2fc7134aa91df4dc404e3962c4204e720c2286d654d15669eb9e0ee9428a9e246e162149ef9704ea6082b5e303ba85
   languageName: node
   linkType: hard
 
@@ -13201,11 +13202,11 @@ __metadata:
     "@internal/backstage-plugin-copilot-chat": "workspace:^"
     "@material-ui/core": "npm:^4.12.2"
     "@material-ui/icons": "npm:^4.9.1"
-    "@playwright/test": "npm:^1.32.3"
+    "@playwright/test": "npm:^1.65.1"
     "@testing-library/dom": "npm:^9.0.0"
     "@testing-library/jest-dom": "npm:^6.0.0"
     "@testing-library/react": "npm:^14.0.0"
-    "@testing-library/user-event": "npm:^14.0.0"
+    "@testing-library/user-event": "npm:^14.6.13"
     "@types/react-dom": "npm:*"
     cross-env: "npm:^7.0.0"
     react: "npm:^18.0.2"
@@ -22075,30 +22076,30 @@ __metadata:
   languageName: node
   linkType: hard
 
-"koffi@npm:3.3.4":
-  version: 3.3.4
-  resolution: "koffi@npm:3.3.4"
+"koffi@npm:3.3.6":
+  version: 3.3.6
+  resolution: "koffi@npm:3.3.6"
   dependencies:
-    "@koromix/koffi-android-arm64": "npm:3.3.4"
-    "@koromix/koffi-android-x64": "npm:3.3.4"
-    "@koromix/koffi-darwin-arm64": "npm:3.3.4"
-    "@koromix/koffi-darwin-x64": "npm:3.3.4"
-    "@koromix/koffi-freebsd-arm64": "npm:3.3.4"
-    "@koromix/koffi-freebsd-ia32": "npm:3.3.4"
-    "@koromix/koffi-freebsd-x64": "npm:3.3.4"
-    "@koromix/koffi-linux-arm": "npm:3.3.4"
-    "@koromix/koffi-linux-arm64": "npm:3.3.4"
-    "@koromix/koffi-linux-ia32": "npm:3.3.4"
-    "@koromix/koffi-linux-loong64": "npm:3.3.4"
-    "@koromix/koffi-linux-ppc64": "npm:3.3.4"
-    "@koromix/koffi-linux-riscv64": "npm:3.3.4"
-    "@koromix/koffi-linux-x64": "npm:3.3.4"
-    "@koromix/koffi-openbsd-arm64": "npm:3.3.4"
-    "@koromix/koffi-openbsd-ia32": "npm:3.3.4"
-    "@koromix/koffi-openbsd-x64": "npm:3.3.4"
-    "@koromix/koffi-win32-arm64": "npm:3.3.4"
-    "@koromix/koffi-win32-ia32": "npm:3.3.4"
-    "@koromix/koffi-win32-x64": "npm:3.3.4"
+    "@koromix/koffi-android-arm64": "npm:3.3.6"
+    "@koromix/koffi-android-x64": "npm:3.3.6"
+    "@koromix/koffi-darwin-arm64": "npm:3.3.6"
+    "@koromix/koffi-darwin-x64": "npm:3.3.6"
+    "@koromix/koffi-freebsd-arm64": "npm:3.3.6"
+    "@koromix/koffi-freebsd-ia32": "npm:3.3.6"
+    "@koromix/koffi-freebsd-x64": "npm:3.3.6"
+    "@koromix/koffi-linux-arm": "npm:3.3.6"
+    "@koromix/koffi-linux-arm64": "npm:3.3.6"
+    "@koromix/koffi-linux-ia32": "npm:3.3.6"
+    "@koromix/koffi-linux-loong64": "npm:3.3.6"
+    "@koromix/koffi-linux-ppc64": "npm:3.3.6"
+    "@koromix/koffi-linux-riscv64": "npm:3.3.6"
+    "@koromix/koffi-linux-x64": "npm:3.3.6"
+    "@koromix/koffi-openbsd-arm64": "npm:3.3.6"
+    "@koromix/koffi-openbsd-ia32": "npm:3.3.6"
+    "@koromix/koffi-openbsd-x64": "npm:3.3.6"
+    "@koromix/koffi-win32-arm64": "npm:3.3.6"
+    "@koromix/koffi-win32-ia32": "npm:3.3.6"
+    "@koromix/koffi-win32-x64": "npm:3.3.6"
   dependenciesMeta:
     "@koromix/koffi-android-arm64":
       optional: true
@@ -22140,7 +22141,7 @@ __metadata:
       optional: true
     "@koromix/koffi-win32-x64":
       optional: true
-  checksum: 10c0/cbc107d30444941751db0765d8dc49112e8aaa70bd03da63672fbc146339ed7797eed164ca793523ccb1063a51d423f336e9d6db326ab430a7eaf17ba2fcfd95
+  checksum: 10c0/97e6d8b084079d8600862b77dbfc9183bb69068ab7ffbc75fcb3602e5f7ba64fe2e3bf40a4052346f02ac14ee2f81149cfeb33a8f8e9ed8871451d2ec8e7427c
   languageName: node
   linkType: hard
 
@@ -22550,6 +22551,13 @@ __metadata:
   bin:
     loose-envify: cli.js
   checksum: 10c0/655d110220983c1a4b9c0c679a2e8016d4b67f6e9c7b5435ff5979ecdb20d0813f4dec0a08674fcbdd4846a3f07edbb50a36811fd37930b94aaa0d9daceb017e
+  languageName: node
+  linkType: hard
+
+"lossless-json@npm:4.3.3":
+  version: 4.3.3
+  resolution: "lossless-json@npm:4.3.3"
+  checksum: 10c0/5fd952ffbdb1c53bcfbbfddc24e62288df7aec4885bbce89a4ff0982ef8a49e352d516dde72302057c2abb1ef083d2d6a725582fc36001a3c43e9d14fa0db711
   languageName: node
   linkType: hard
 
@@ -25608,23 +25616,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"playwright-core@npm:1.64.1":
-  version: 1.64.1
-  resolution: "playwright-core@npm:1.64.1"
+"playwright-core@npm:1.65.1":
+  version: 1.65.1
+  resolution: "playwright-core@npm:1.65.1"
   bin:
     playwright-core: cli.js
-  checksum: 10c0/91c4f5ed1cff4b0e18b6ac62f66770f5f1b6c204d4aebd6a321c07466dca18a70822ac692597c6059705a703f9768097ac551df179fb49294d639509148e04f3
+  checksum: 10c0/4406d4f8eff668a93aaada8382d25fcce8da5f679e9f31311888178d631ed0270eb40c0288129e41e15709c957a31932cac9753fdb332547a19bc3541d317e44
   languageName: node
   linkType: hard
 
-"playwright@npm:1.64.1":
-  version: 1.64.1
-  resolution: "playwright@npm:1.64.1"
+"playwright@npm:1.65.1":
+  version: 1.65.1
+  resolution: "playwright@npm:1.65.1"
   dependencies:
-    playwright-core: "npm:1.64.1"
+    playwright-core: "npm:1.65.1"
   bin:
     playwright: cli.js
-  checksum: 10c0/edf52d0a79feca37bf383e841a467aa68750684128218eac560063991c9e4b615a94901f580cd8a088bb05fd53008ab4a0e5e8d976067698b60ae5d1de2459f3
+  checksum: 10c0/30ce029c9fb2a6e88cf81b150b978fd60edb59b8af5a6460f5576f0fe6e2bb739454109f0ce4904eac63cb2cf10390518d7d71d335fd695b5897734a5af7250d
   languageName: node
   linkType: hard
 
@@ -28116,7 +28124,7 @@ __metadata:
     "@backstage/cli-defaults": "npm:^0.1.7"
     "@backstage/e2e-test-utils": "npm:^0.1.2"
     "@jest/environment-jsdom-abstract": "npm:^30.5.0"
-    "@playwright/test": "npm:^1.32.3"
+    "@playwright/test": "npm:^1.65.1"
     "@types/jest": "npm:^30.0.0"
     jest: "npm:^30.5.0"
     jsdom: "npm:^27.1.0"
