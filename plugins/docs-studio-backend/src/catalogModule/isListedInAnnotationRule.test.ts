@@ -36,13 +36,13 @@ describe('isListedInAnnotationRule', () => {
 
   it('matches claims listed in a comma-separated annotation', () => {
     const e = entity({
-      [ANNOTATION]: 'user:default/samwell_returng, group:default/approvers',
+      [ANNOTATION]: 'user:default/samwell_example, group:default/approvers',
     });
-    expect(apply(e, ['user:default/samwell_returng'])).toBe(true);
+    expect(apply(e, ['user:default/samwell_example'])).toBe(true);
     expect(
-      apply(e, ['user:default/jon_returng', 'group:default/approvers']),
+      apply(e, ['user:default/jon_example', 'group:default/approvers']),
     ).toBe(true);
-    expect(apply(e, ['user:default/jon_returng'])).toBe(false);
+    expect(apply(e, ['user:default/jon_example'])).toBe(false);
   });
 
   it('accepts whitespace separators and normalizes shorthand refs', () => {

@@ -33,17 +33,17 @@ function renderGate(
 
 describe('LicenseGate', () => {
   it('renders the chat for users whose entity has a GitHub login', async () => {
-    const { rendered, fetch } = renderGate('user:default/jon_returng', {
+    const { rendered, fetch } = renderGate('user:default/jon_example', {
       status: 200,
       body: {
-        metadata: { annotations: { 'github.com/user-login': 'jon_returng' } },
+        metadata: { annotations: { 'github.com/user-login': 'jon_example' } },
       },
     });
     await rendered;
 
     expect(await screen.findByText('chat ready')).toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/entities/by-name/user/default/jon_returng'),
+      expect.stringContaining('/entities/by-name/user/default/jon_example'),
     );
   });
 

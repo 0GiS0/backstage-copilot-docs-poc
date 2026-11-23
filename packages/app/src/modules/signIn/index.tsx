@@ -16,7 +16,7 @@ const githubProvider = {
 const microsoftProvider = {
   id: 'microsoft-auth-provider',
   title: 'Microsoft Entra ID',
-  message: 'Inicia sesión con tu cuenta corporativa',
+  message: 'Sign in with your corporate account',
   apiRef: microsoftAuthApiRef,
 };
 

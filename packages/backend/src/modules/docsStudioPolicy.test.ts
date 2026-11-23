@@ -12,9 +12,9 @@ import { DocsStudioPermissionPolicy } from './docsStudioPolicy';
 
 const user = {
   info: {
-    userEntityRef: 'user:default/jon_returng',
+    userEntityRef: 'user:default/jon_example',
     ownershipEntityRefs: [
-      'user:default/jon_returng',
+      'user:default/jon_example',
       'group:default/engineering',
     ],
   },

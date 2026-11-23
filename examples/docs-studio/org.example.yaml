@@ -26,10 +26,10 @@
 apiVersion: backstage.io/v1alpha1
 kind: User
 metadata:
-  name: jon_returng # REPLACE_ME: EMU login of this user if different
+  name: REPLACE_ME_EMU_LOGIN_JON # REPLACE_ME: GitHub EMU login of this user
   annotations:
     graph.microsoft.com/user-id: REPLACE_ME_ENTRA_OBJECT_ID
-    github.com/user-login: jon_returng # REPLACE_ME: same as metadata.name
+    github.com/user-login: REPLACE_ME_EMU_LOGIN_JON # REPLACE_ME: same as metadata.name
 spec:
   profile:
     displayName: Jon Snow
@@ -41,10 +41,10 @@ spec:
 apiVersion: backstage.io/v1alpha1
 kind: User
 metadata:
-  name: samwell_returng # REPLACE_ME: EMU login of this user if different
+  name: REPLACE_ME_EMU_LOGIN_SAMWELL # REPLACE_ME: GitHub EMU login of this user
   annotations:
     graph.microsoft.com/user-id: REPLACE_ME_ENTRA_OBJECT_ID
-    github.com/user-login: samwell_returng # REPLACE_ME: same as metadata.name
+    github.com/user-login: REPLACE_ME_EMU_LOGIN_SAMWELL # REPLACE_ME: same as metadata.name
 spec:
   profile:
     displayName: Samwell Tarly
