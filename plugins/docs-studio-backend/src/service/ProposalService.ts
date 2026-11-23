@@ -151,6 +151,11 @@ const OUT_OF_SCOPE_MESSAGE =
   'The pull request also changes files outside this documentation, so it cannot be approved or published in Docs Studio';
 const OUT_OF_SCOPE_DESCRIPTION = 'Changes files outside this documentation';
 
+/** Serializes the changes of a page: commits, reviews and syncs. */
+function lockKey(record: { entityRef: string; path: string }): string {
+  return `${record.entityRef}#${record.path}`;
+}
+
 /** Whether a changed file, and its previous path, belong to the docs. */
 function isFileInScope(
   docs: DocsLocation,
@@ -399,7 +404,7 @@ export class ProposalService {
     await this.gateway.assertCanWrite(docs.repo);
     const assets = prepareAssets(request.assets, this.settings.maxAssetSizeMb);
 
-    return this.withLock(`${request.entityRef}#${request.path}`, async () => {
+    return this.withLock(lockKey(request), async () => {
       const existing = await this.store.findActive(
         request.entityRef,
         request.path,
@@ -454,19 +459,17 @@ export class ProposalService {
     const docs = await this.resolver.resolve(entity);
     await this.gateway.assertCanWrite(docs.repo);
     const assets = prepareAssets(request.assets, this.settings.maxAssetSizeMb);
-    const updated = await this.withLock(
-      `${record.entityRef}#${record.path}`,
-      () =>
-        this.pushToExisting({
-          record,
-          identity,
-          docs,
-          content: request.content,
-          baseSha: request.baseSha,
-          assets,
-          message: request.message,
-          mode: 'edit',
-        }),
+    const updated = await this.withLock(lockKey(record), () =>
+      this.pushToExisting({
+        record,
+        identity,
+        docs,
+        content: request.content,
+        baseSha: request.baseSha,
+        assets,
+        message: request.message,
+        mode: 'edit',
+      }),
     );
     return this.buildDetail(updated, identity, credentials, entity);
   }
@@ -484,74 +487,86 @@ export class ProposalService {
       docsStudioProposalApprovePermission,
       'approve this proposal',
     );
-    let record = await this.refreshProposal(loaded.record);
-    const reason = approveBlockedReason({
-      status: record.status,
-      authors: record.authors,
-      approvals: record.approvals,
-      headSha: record.headSha,
-      userEntityRef: identity.userEntityRef,
-    });
-    if (reason === 'author') {
-      throw new NotAllowedError('You cannot approve your own proposal');
-    }
-    if (reason === 'already-approved') {
-      throw new ConflictError('You already approved this version');
-    }
-    if (reason === 'not-open') {
-      throw new ConflictError(`This proposal is ${record.status}`);
-    }
-    if (input.sha && input.sha !== record.headSha) {
-      throw new ConflictError(
-        'The proposal changed after you opened it. Reload it and review the new version.',
-      );
-    }
-    await this.assertInScope(record);
-    await this.gateway.assertCanWrite(this.repoRef(record));
-
-    const now = new Date().toISOString();
-    await this.store.addApproval(record.id, {
-      userEntityRef: identity.userEntityRef,
-      displayName: identity.displayName,
-      sha: record.headSha,
-      createdAt: now,
-      comment: input.comment,
-    });
-    await this.store.addEvent(record.id, {
-      type: 'approved',
-      actor: this.actorOf(identity),
-      sha: record.headSha,
-      message: input.comment,
-    });
-    record = (await this.store.get(id))!;
-    const met = approvalThresholdMet(
-      record.approvals,
-      record.headSha,
-      record.requiredApprovals,
-    );
-    await this.store.update(id, {
-      status: met ? 'approved' : 'open',
-      updatedAt: now,
-    });
-    record = (await this.store.get(id))!;
-    await this.applyCommitStatus(record);
-    await this.updatePullRequestBody(record);
-
-    let mergeError: string | undefined;
-    if (met && this.settings.autoMergeOnApproval) {
-      try {
-        record = await this.performMerge(record, identity);
-      } catch (error) {
-        if (!(error instanceof MergeBlockedError)) {
-          throw error;
+    const { record, mergeError } = await this.withLock(
+      lockKey(loaded.record),
+      async () => {
+        let current = await this.refreshUnlocked(loaded.record);
+        const reason = approveBlockedReason({
+          status: current.status,
+          authors: current.authors,
+          approvals: current.approvals,
+          headSha: current.headSha,
+          userEntityRef: identity.userEntityRef,
+        });
+        if (reason === 'author') {
+          throw new NotAllowedError('You cannot approve your own proposal');
         }
-        mergeError = error.message;
-        this.logger.warn(
-          `Automatic merge of proposal ${id} was refused: ${error.message}`,
+        if (reason === 'already-approved') {
+          throw new ConflictError('You already approved this version');
+        }
+        if (reason === 'not-open') {
+          throw new ConflictError(`This proposal is ${current.status}`);
+        }
+        if (input.sha && input.sha !== current.headSha) {
+          throw new ConflictError(
+            'The proposal changed after you opened it. Reload it and review the new version.',
+          );
+        }
+        await this.assertInScope(current);
+        await this.gateway.assertCanWrite(this.repoRef(current));
+
+        const approvedSha = current.headSha;
+        const now = new Date().toISOString();
+        await this.store.addApproval(id, {
+          userEntityRef: identity.userEntityRef,
+          displayName: identity.displayName,
+          sha: approvedSha,
+          createdAt: now,
+          comment: input.comment,
+        });
+        await this.store.addEvent(id, {
+          type: 'approved',
+          actor: this.actorOf(identity),
+          sha: approvedSha,
+          message: input.comment,
+        });
+        current = (await this.store.get(id))!;
+        const met = approvalThresholdMet(
+          current.approvals,
+          approvedSha,
+          current.requiredApprovals,
         );
-      }
-    }
-    record = (await this.store.get(id))!;
+        const updated = await this.store.update(id, {
+          status: met ? 'approved' : 'open',
+          updatedAt: now,
+          expectedHeadSha: approvedSha,
+        });
+        if (!updated) {
+          throw new ConflictError(
+            'The proposal changed while it was being approved. Reload it and review the new version.',
+          );
+        }
+        current = (await this.store.get(id))!;
+        await this.applyCommitStatus(current);
+        await this.updatePullRequestBody(current);
+
+        let error: string | undefined;
+        if (met && this.settings.autoMergeOnApproval) {
+          try {
+            current = await this.performMerge(current, identity);
+          } catch (mergeFailure) {
+            if (!(mergeFailure instanceof MergeBlockedError)) {
+              throw mergeFailure;
+            }
+            error = mergeFailure.message;
+            this.logger.warn(
+              `Automatic merge of proposal ${id} was refused: ${error}`,
+            );
+          }
+        }
+        return { record: (await this.store.get(id))!, mergeError: error };
+      },
+    );
     return {
       proposal: await this.buildDetail(
         record,
@@ -576,24 +591,34 @@ export class ProposalService {
       docsStudioProposalApprovePermission,
       'review this proposal',
     );
-    let record = await this.refreshProposal(loaded.record);
-    if (!isActiveStatus(record.status)) {
-      throw new ConflictError(`This proposal is ${record.status}`);
-    }
-    await this.gateway.assertCanWrite(this.repoRef(record));
-    await this.store.update(id, {
-      status: 'changes_requested',
-      updatedAt: new Date().toISOString(),
+    const record = await this.withLock(lockKey(loaded.record), async () => {
+      const current = await this.refreshUnlocked(loaded.record);
+      if (!isActiveStatus(current.status)) {
+        throw new ConflictError(`This proposal is ${current.status}`);
+      }
+      await this.gateway.assertCanWrite(this.repoRef(current));
+      const updated = await this.store.update(id, {
+        status: 'changes_requested',
+        updatedAt: new Date().toISOString(),
+        expectedHeadSha: current.headSha,
+      });
+      if (!updated) {
+        throw new ConflictError(
+          'The proposal changed while it was being reviewed. Reload it and review the new version.',
+        );
+      }
+      await this.store.addEvent(id, {
+        type: 'changes_requested',
+        actor: this.actorOf(identity),
+        sha: current.headSha,
+        message: input.comment,
+      });
+      await this.applyCommitStatus(
+        (await this.store.get(id))!,
+        identity.displayName,
+      );
+      return (await this.store.get(id))!;
     });
-    await this.store.addEvent(id, {
-      type: 'changes_requested',
-      actor: this.actorOf(identity),
-      sha: record.headSha,
-      message: input.comment,
-    });
-    record = (await this.store.get(id))!;
-    await this.applyCommitStatus(record, identity.displayName);
-    record = (await this.store.get(id))!;
     return this.buildDetail(record, identity, credentials, loaded.entity);
   }
 
@@ -609,30 +634,20 @@ export class ProposalService {
       docsStudioProposalApprovePermission,
       'merge this proposal',
     );
-    let record = await this.refreshProposal(loaded.record);
-    if (
-      record.status !== 'approved' ||
-      !approvalThresholdMet(
-        record.approvals,
-        record.headSha,
-        record.requiredApprovals,
-      )
-    ) {
-      throw new ConflictError(
-        'The proposal needs the required approvals for its current version before it can be merged',
-      );
-    }
-    await this.gateway.assertCanWrite(this.repoRef(record));
-    try {
-      record = await this.performMerge(record, identity);
-    } catch (error) {
-      if (error instanceof MergeBlockedError) {
-        throw new ConflictError(
-          `GitHub could not merge the pull request: ${error.message}`,
-        );
+    const record = await this.withLock(lockKey(loaded.record), async () => {
+      const current = await this.refreshUnlocked(loaded.record);
+      await this.gateway.assertCanWrite(this.repoRef(current));
+      try {
+        return await this.performMerge(current, identity);
+      } catch (error) {
+        if (error instanceof MergeBlockedError) {
+          throw new ConflictError(
+            `GitHub could not merge the pull request: ${error.message}`,
+          );
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
     return this.buildDetail(record, identity, credentials, loaded.entity);
   }
 
@@ -685,17 +700,25 @@ export class ProposalService {
    * GitHub, or a new head commit (which makes earlier approvals stale).
    */
   async refreshProposal(record: ProposalRecord): Promise<ProposalRecord> {
-    if (!isActiveStatus(record.status)) {
-      return record;
-    }
-    const pr = await this.gateway.getPullRequest(
-      this.repoRef(record),
-      record.prNumber,
-    );
-    return this.reconcile(record, pr);
+    return this.withLock(lockKey(record), () => this.refreshUnlocked(record));
   }
 
-  async reconcile(
+  /** Same as `refreshProposal`, for callers that already hold the lock. */
+  private async refreshUnlocked(
+    record: ProposalRecord,
+  ): Promise<ProposalRecord> {
+    const current = (await this.store.get(record.id)) ?? record;
+    if (!isActiveStatus(current.status)) {
+      return current;
+    }
+    const pr = await this.gateway.getPullRequest(
+      this.repoRef(current),
+      current.prNumber,
+    );
+    return this.reconcile(current, pr);
+  }
+
+  private async reconcile(
     record: ProposalRecord,
     pr: GithubPullRequest,
   ): Promise<ProposalRecord> {
@@ -741,6 +764,17 @@ export class ProposalService {
    * the sync job to heal missing or outdated statuses.
    */
   async ensureCommitStatus(record: ProposalRecord): Promise<void> {
+    await this.withLock(lockKey(record), async () => {
+      const current = await this.store.get(record.id);
+      if (current) {
+        await this.ensureCommitStatusUnlocked(current);
+      }
+    });
+  }
+
+  private async ensureCommitStatusUnlocked(
+    record: ProposalRecord,
+  ): Promise<void> {
     if (!isActiveStatus(record.status)) {
       return;
     }
@@ -1070,7 +1104,7 @@ export class ProposalService {
     mode: ProposalKind;
   }): Promise<ProposalRecord> {
     const { identity, docs } = options;
-    let record = await this.refreshProposal(options.record);
+    let record = await this.refreshUnlocked(options.record);
     if (record.status !== 'open' && record.status !== 'changes_requested') {
       throw new ConflictError(
         record.status === 'approved'
@@ -1279,6 +1313,11 @@ export class ProposalService {
     record: ProposalRecord,
     identity: CallerIdentity,
   ): Promise<ProposalRecord> {
+    if (!this.isApproved(record)) {
+      throw new ConflictError(
+        'The proposal needs the required approvals for its current version before it can be merged',
+      );
+    }
     await this.assertInScope(record);
     const repo = this.repoRef(record);
     await this.gateway.mergePullRequest(repo, record.prNumber, {
@@ -1299,6 +1338,18 @@ export class ProposalService {
     return (await this.store.get(record.id))!;
   }
 
+  /** Approved, with enough approvals for the current head. */
+  private isApproved(record: ProposalRecord): boolean {
+    return (
+      record.status === 'approved' &&
+      approvalThresholdMet(
+        record.approvals,
+        record.headSha,
+        record.requiredApprovals,
+      )
+    );
+  }
+
   private desiredStatus(
     record: ProposalRecord,
     requestedBy?: string,
@@ -1310,7 +1361,7 @@ export class ProposalService {
       };
     }
     const approvals = currentApprovals(record.approvals, record.headSha);
-    if (record.status === 'approved') {
+    if (this.isApproved(record)) {
       return {
         state: 'success',
         description: successDescription(approvals.map(a => a.displayName)),
@@ -1506,7 +1557,7 @@ export class ProposalService {
           canCreate &&
           (record.status === 'open' || record.status === 'changes_requested'),
         canApprove: canApprove && reason === undefined,
-        canMerge: canApprove && record.status === 'approved' && !outOfScope,
+        canMerge: canApprove && this.isApproved(record) && !outOfScope,
         canDiscard: active && (author || canApprove),
         approveBlockedReason: reason,
       },

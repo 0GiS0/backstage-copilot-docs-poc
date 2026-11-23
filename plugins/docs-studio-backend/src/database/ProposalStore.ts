@@ -105,6 +105,8 @@ export interface ProposalPatch {
   headSha?: string;
   checkState?: CheckState;
   updatedAt: string;
+  /** Only update when the stored head is still this commit. */
+  expectedHeadSha?: string;
 }
 
 export type NewEvent = Omit<ProposalEvent, 'id' | 'createdAt'> & {
@@ -261,14 +263,19 @@ export class ProposalStore {
     return this.hydrate(await query);
   }
 
-  async update(id: string, patch: ProposalPatch): Promise<void> {
+  /** Returns whether a row was updated. */
+  async update(id: string, patch: ProposalPatch): Promise<boolean> {
     const values: Record<string, unknown> = { updated_at: patch.updatedAt };
     if (patch.title !== undefined) values.title = patch.title;
     if (patch.description !== undefined) values.description = patch.description;
     if (patch.status !== undefined) values.status = patch.status;
     if (patch.headSha !== undefined) values.head_sha = patch.headSha;
     if (patch.checkState !== undefined) values.check_state = patch.checkState;
-    await this.db('proposals').where({ id }).update(values);
+    const query = this.db('proposals').where({ id });
+    if (patch.expectedHeadSha !== undefined) {
+      query.andWhere({ head_sha: patch.expectedHeadSha });
+    }
+    return (await query.update(values)) > 0;
   }
 
   async addAuthor(id: string, author: StoredAuthor): Promise<void> {

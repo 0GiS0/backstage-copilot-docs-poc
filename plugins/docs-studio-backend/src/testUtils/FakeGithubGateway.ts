@@ -61,6 +61,8 @@ export class FakeGithubGateway implements GithubGateway {
   readOnly = false;
   hasInstallation = true;
   botLogin = 'docs-studio[bot]';
+  /** Called once by the next write check, to interleave other requests. */
+  beforeNextWriteCheck?: () => Promise<void>;
   userIds = new Map<string, number>();
 
   private readonly snapshots = new Map<string, Tree>();
@@ -182,6 +184,9 @@ export class FakeGithubGateway implements GithubGateway {
   }
 
   async assertCanWrite(repo: RepoRef): Promise<void> {
+    const hook = this.beforeNextWriteCheck;
+    this.beforeNextWriteCheck = undefined;
+    await hook?.();
     if (this.readOnly) {
       throw new NotAllowedError(`No GitHub App installation for ${repo.owner}`);
     }

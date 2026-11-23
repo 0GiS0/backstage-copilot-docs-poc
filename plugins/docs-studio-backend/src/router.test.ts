@@ -31,6 +31,7 @@ import {
   DOCS_STUDIO_PLUGIN_ID,
   ProposalDetail,
 } from '@internal/backstage-plugin-docs-studio-common';
+import knexFactory from 'knex';
 import request from 'supertest';
 import { docsStudioGithubGatewayExtensionPoint } from './extensions';
 import { docsStudioPlugin } from './plugin';
@@ -178,9 +179,16 @@ async function setup(config: Record<string, unknown> = {}) {
     },
   });
 
+  const db = knexFactory({
+    client: 'better-sqlite3',
+    connection: ':memory:',
+    useNullAsDefault: true,
+    pool: { min: 1, max: 1 },
+  });
   const backend = await startTestBackend({
     features: [
       docsStudioPlugin,
+      mockServices.database.factory({ knex: db }),
       createBackendModule({
         pluginId: DOCS_STUDIO_PLUGIN_ID,
         moduleId: 'test-gateway',
@@ -206,7 +214,10 @@ async function setup(config: Record<string, unknown> = {}) {
   });
 
   const { server } = backend;
-  stops.push(() => backend.stop());
+  stops.push(async () => {
+    await backend.stop();
+    await db.destroy();
+  });
 
   const call = (userRef: string) => {
     const auth = mockCredentials.user.header(userRef);
@@ -225,7 +236,7 @@ async function setup(config: Record<string, unknown> = {}) {
   const runSync = async () => {
     await (task as any).fn();
   };
-  return { github, state, call, runSync };
+  return { github, state, call, runSync, db };
 }
 
 const STATUS = 'docs-studio/approval';
@@ -639,6 +650,62 @@ describe('docs studio backend', () => {
         .call(BOB)
         .post(`/proposals/${proposal.id}/approve`, {});
       expect(premature.status).toBe(409);
+    });
+
+    it('reports success and merges only with enough approvals for the current head', async () => {
+      const { s, proposal } = await proposed({ autoMergeOnApproval: false });
+      s.github.mergeBlocked = true;
+      const approved = await s
+        .call(BOB)
+        .post(`/proposals/${proposal.id}/approve`, {});
+      expect(approved.body.status).toBe('approved');
+      expect(s.github.statuses.get(`${proposal.headSha}|${STATUS}`)).toBe(
+        'success',
+      );
+      s.github.mergeBlocked = false;
+
+      // An approved row whose approvals are for another commit.
+      await s.db('proposal_approvals').update({ sha: 'an-older-commit' });
+      await s.runSync();
+      expect(s.github.statuses.get(`${proposal.headSha}|${STATUS}`)).toBe(
+        'pending',
+      );
+      const detail = (await s.call(BOB).get(`/proposals/${proposal.id}`)).body;
+      expect(detail.permissions.canMerge).toBe(false);
+      const merge = await s.call(BOB).post(`/proposals/${proposal.id}/merge`);
+      expect(merge.status).toBe(409);
+      expect(s.github.pullRequest(1).merged).toBe(false);
+    });
+
+    it('does not approve a head that changes during the approval', async () => {
+      const { s, proposal } = await proposed();
+      const fresh = await pageSha(s, ADA, proposal.id);
+      let commit: Promise<request.Response> | undefined;
+      s.github.beforeNextWriteCheck = async () => {
+        commit = s
+          .call(ADA)
+          .post(`/proposals/${proposal.id}/commits`, {
+            content: '# Setup\n\nChanged during the review\n',
+            baseSha: fresh.sha,
+          })
+          .then(res => res);
+        // Gives the commit time to run if nothing holds it back.
+        await Promise.race([
+          commit,
+          new Promise(resolve => setTimeout(resolve, 300)),
+        ]);
+      };
+      const approve = await s
+        .call(BOB)
+        .post(`/proposals/${proposal.id}/approve`, {});
+      const committed = await commit!;
+
+      expect(approve.status).toBe(200);
+      expect(approve.body.status).toBe('merged');
+      expect(committed.status).toBe(409);
+      expect(s.github.fileAt('main', 'engineering/docs/guides/setup.md')).toBe(
+        '# Setup\n\nImproved\n',
+      );
     });
 
     it('cannot merge before approval', async () => {
