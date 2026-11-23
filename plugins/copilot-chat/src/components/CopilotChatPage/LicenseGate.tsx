@@ -91,7 +91,7 @@ export const LicenseGate = ({ children }: { children: ReactNode }) => {
     <Page themeId="tool">
       <Header
         title="Copilot Chat"
-        subtitle="Ask the engineering docs, powered by the GitHub Copilot SDK"
+        subtitle="Ask the engineering docs, powered by the Microsoft Copilot SDK (formerly GitHub Copilot SDK)"
       />
       <Content>
         {license === 'loading' ? (
