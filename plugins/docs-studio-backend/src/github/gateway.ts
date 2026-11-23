@@ -78,6 +78,11 @@ export type CommitStatusState = 'pending' | 'success' | 'failure' | 'error';
 export interface GithubGateway {
   /** True when a GitHub App installation covers the repository. */
   hasAppInstallation(repo: RepoRef): Promise<boolean>;
+  /**
+   * GitHub login of the bot user of the GitHub App that serves the repository
+   * (`<app-slug>[bot]`). Pull requests opened by Docs Studio have this author.
+   */
+  getAppBotLogin(repo: RepoRef): Promise<string>;
   /** Throws `NotAllowedError` when the repository cannot be written to. */
   assertCanWrite(repo: RepoRef): Promise<void>;
   getRepository(repo: RepoRef): Promise<{ defaultBranch: string }>;
@@ -136,7 +141,11 @@ export interface GithubGateway {
       targetUrl: string;
     },
   ): Promise<void>;
-  /** State of a commit status context, or `undefined` when it is not set. */
+  /**
+   * State of the latest status of `context` that the Docs Studio GitHub App
+   * itself set on `sha`, or `undefined` when it has not set one. Statuses
+   * created by anyone else are ignored.
+   */
   getCommitStatusState(
     repo: RepoRef,
     sha: string,

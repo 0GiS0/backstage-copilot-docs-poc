@@ -90,6 +90,11 @@ export class RepositoryGuardGateway implements GithubGateway {
     );
   }
 
+  async getAppBotLogin(repo: RepoRef) {
+    this.check(repo);
+    return this.inner.getAppBotLogin(repo);
+  }
+
   async assertCanWrite(repo: RepoRef) {
     this.check(repo);
     return this.inner.assertCanWrite(repo);

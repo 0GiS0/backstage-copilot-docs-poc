@@ -60,6 +60,7 @@ export class FakeGithubGateway implements GithubGateway {
   mergeBlocked = false;
   readOnly = false;
   hasInstallation = true;
+  botLogin = 'docs-studio[bot]';
   userIds = new Map<string, number>();
 
   private readonly snapshots = new Map<string, Tree>();
@@ -102,6 +103,7 @@ export class FakeGithubGateway implements GithubGateway {
     branch: string;
     files: Record<string, string>;
     title?: string;
+    body?: string;
     fromFork?: boolean;
   }): GithubPullRequest {
     const tree = new Map(this.tree(this.defaultBranch));
@@ -111,7 +113,7 @@ export class FakeGithubGateway implements GithubGateway {
     this.setHead(options.branch, tree);
     return this.createPullRequestSync({
       title: options.title ?? 'Some change',
-      body: 'Fixes a typo',
+      body: options.body ?? 'Fixes a typo',
       head: options.branch,
       base: this.defaultBranch,
       login: options.login,
@@ -160,7 +162,7 @@ export class FakeGithubGateway implements GithubGateway {
       headSha: this.heads.get(options.head)!,
       baseRef: options.base,
       baseSha: this.heads.get(options.base)!,
-      authorLogin: options.login ?? 'docs-studio[bot]',
+      authorLogin: options.login ?? this.botLogin,
       fromFork: options.fromFork ?? false,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
@@ -173,6 +175,10 @@ export class FakeGithubGateway implements GithubGateway {
 
   async hasAppInstallation(): Promise<boolean> {
     return this.hasInstallation;
+  }
+
+  async getAppBotLogin(): Promise<string> {
+    return this.botLogin;
   }
 
   async assertCanWrite(repo: RepoRef): Promise<void> {

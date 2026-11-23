@@ -38,6 +38,7 @@ import {
   docsStudioProposalCreatePermission,
   DocsStudioIdentity,
   PageContent,
+  ProposalApproval,
   ProposalAuthor,
   ProposalDetail,
   ProposalFile,
@@ -153,6 +154,45 @@ function publicAuthor(author: StoredAuthor): ProposalAuthor {
     licensed: author.licensed,
     githubLogin: author.githubLogin,
   };
+}
+
+function optionalText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
+/** An author from a pull request body, which is untrusted input. */
+function sanitizeAuthor(value: unknown): StoredAuthor[] {
+  const input = (value ?? {}) as Record<string, unknown>;
+  const displayName = optionalText(input.displayName);
+  if (!displayName) {
+    return [];
+  }
+  return [
+    {
+      userEntityRef: optionalText(input.userEntityRef),
+      displayName,
+      licensed: input.licensed === true,
+      githubLogin: optionalText(input.githubLogin),
+    },
+  ];
+}
+
+function sanitizeApproval(value: unknown): ProposalApproval[] {
+  const input = (value ?? {}) as Record<string, unknown>;
+  const userEntityRef = optionalText(input.userEntityRef);
+  const sha = optionalText(input.sha);
+  if (!userEntityRef || !sha) {
+    return [];
+  }
+  return [
+    {
+      userEntityRef,
+      displayName: optionalText(input.displayName) ?? userEntityRef,
+      sha,
+      createdAt: optionalText(input.createdAt) ?? new Date().toISOString(),
+      comment: optionalText(input.comment),
+    },
+  ];
 }
 
 function stripTitlePrefix(title: string): string {
@@ -767,28 +807,37 @@ export class ProposalService {
     return (await this.store.get(record.id))!;
   }
 
-  /** Recreates a proposal from the metadata block of its pull request. */
+  /**
+   * Recreates a proposal from the metadata block of a pull request that the
+   * GitHub App opened and whose entity the caller has verified. Approvals in
+   * the block are only trusted when the App's own commit status already
+   * reports the current head as approved; otherwise the proposal starts over
+   * as pending, without approvals.
+   */
   async restoreFromMetadata(options: {
     docs: DocsLocation;
     pr: GithubPullRequest;
     metadata: ProposalMetadata;
   }): Promise<ProposalRecord | undefined> {
     const { docs, pr, metadata } = options;
+    const entityRef = docs.entityRef;
+    const path = parsePagePath(metadata.path);
     if (
       (await this.store.get(metadata.id)) ||
-      (await this.store.findActive(metadata.entityRef, metadata.path))
+      (await this.store.findActive(entityRef, path))
     ) {
       return undefined;
     }
+    const authors = metadata.authors.flatMap(sanitizeAuthor);
     const record = this.recordFromPullRequest({
       id: metadata.id,
-      entityRef: metadata.entityRef,
+      entityRef,
       docs,
       pr,
-      path: metadata.path,
+      path,
       kind: metadata.kind,
       source: 'docs-studio',
-      authors: metadata.authors,
+      authors,
     });
     let state: CommitStatusState | undefined;
     try {
@@ -798,13 +847,21 @@ export class ProposalService {
         this.settings.statusContext,
       );
     } catch {
-      // The status is restored below anyway.
+      // Without the App's own status nothing in the block is trusted.
     }
-    const current = metadata.approvals.filter(a => a.sha === pr.headSha);
+    const approvals =
+      state === 'success'
+        ? currentApprovals(
+            metadata.approvals
+              .flatMap(sanitizeApproval)
+              .filter(a => !isAuthor(record.authors, a.userEntityRef)),
+            pr.headSha,
+          )
+        : [];
     record.status = 'open';
     if (state === 'failure') {
       record.status = 'changes_requested';
-    } else if (current.length >= record.requiredApprovals) {
+    } else if (approvals.length >= record.requiredApprovals) {
       record.status = 'approved';
     }
     await this.store.insert(record, [
@@ -814,7 +871,7 @@ export class ProposalService {
         message: 'Restored from the pull request metadata',
       },
     ]);
-    for (const approval of metadata.approvals) {
+    for (const approval of approvals) {
       await this.store.addApproval(record.id, approval);
     }
     await this.applyCommitStatus((await this.store.get(record.id))!);

@@ -15,7 +15,11 @@
  */
 
 import { AuthService, LoggerService } from '@backstage/backend-plugin-api';
-import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
+import {
+  Entity,
+  parseEntityRef,
+  stringifyEntityRef,
+} from '@backstage/catalog-model';
 import { CATALOG_FILTER_EXISTS } from '@backstage/catalog-client';
 import { CatalogService } from '@backstage/plugin-catalog-node';
 import { ProposalStore } from '../database/ProposalStore';
@@ -25,9 +29,10 @@ import {
   DocsResolver,
   toDocsRelativePath,
 } from '../docs/resolver';
-import { GithubGateway, RepoRef } from '../github/gateway';
-import { decodeMetadata } from '../service/metadata';
+import { GithubGateway, GithubPullRequest, RepoRef } from '../github/gateway';
+import { decodeMetadata, ProposalMetadata } from '../service/metadata';
 import { ProposalService } from '../service/ProposalService';
+import { parsePagePath } from '../service/validation';
 
 export interface SynchronizerOptions {
   store: ProposalStore;
@@ -38,6 +43,9 @@ export interface SynchronizerOptions {
   auth: AuthService;
   logger: LoggerService;
 }
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function repoKey(repo: RepoRef): string {
   return `${repo.host}/${repo.owner}/${repo.repo}`.toLowerCase();
@@ -131,12 +139,30 @@ export class Synchronizer {
         if (await store.getByPullRequest(repo, pr.number)) {
           continue;
         }
+        const files = await gateway.listPullRequestFiles(repo, pr.number);
+        const owner = this.mostSpecificOwner(
+          locations,
+          files.map(f => f.path),
+        );
+        if (!owner) {
+          this.ignored.add(ignoreKey);
+          continue;
+        }
         const metadata = decodeMetadata(pr.body);
         if (metadata) {
-          const docs = locations.find(l => l.entityRef === metadata.entityRef);
-          if (docs) {
+          const rejection = await this.metadataRejection(
+            repo,
+            pr,
+            metadata,
+            owner,
+          );
+          if (rejection) {
+            logger.info(
+              `Ignoring the Docs Studio metadata of pull request #${pr.number} of ${repo.owner}/${repo.repo}: ${rejection}`,
+            );
+          } else {
             const restored = await service.restoreFromMetadata({
-              docs,
+              docs: owner,
               pr,
               metadata,
             });
@@ -147,15 +173,6 @@ export class Synchronizer {
               continue;
             }
           }
-        }
-        const files = await gateway.listPullRequestFiles(repo, pr.number);
-        const owner = this.mostSpecificOwner(
-          locations,
-          files.map(f => f.path),
-        );
-        if (!owner) {
-          this.ignored.add(ignoreKey);
-          continue;
         }
         const imported = await service.importExternalPullRequest({
           entityRef: owner.entityRef,
@@ -176,6 +193,44 @@ export class Synchronizer {
         );
       }
     }
+  }
+
+  /**
+   * Why the metadata block of a pull request cannot be trusted, or
+   * `undefined` when it can. Anyone who can open a pull request can also
+   * write such a block, so it only counts on pull requests opened by the
+   * GitHub App and only when it matches the files the pull request changes.
+   */
+  private async metadataRejection(
+    repo: RepoRef,
+    pr: GithubPullRequest,
+    metadata: ProposalMetadata,
+    owner: DocsLocation,
+  ): Promise<string | undefined> {
+    const botLogin = await this.options.gateway.getAppBotLogin(repo);
+    if (pr.authorLogin?.toLowerCase() !== botLogin.toLowerCase()) {
+      return 'the pull request was not opened by the Docs Studio GitHub App';
+    }
+    if (!UUID_PATTERN.test(metadata.id)) {
+      return 'the proposal id is not valid';
+    }
+    let entityRef: string;
+    try {
+      entityRef = stringifyEntityRef(parseEntityRef(metadata.entityRef));
+    } catch {
+      return 'the entity reference is not valid';
+    }
+    if (entityRef !== owner.entityRef) {
+      return 'the entity does not own the changed files';
+    }
+    try {
+      if (parsePagePath(metadata.path) !== metadata.path) {
+        return 'the page path is not normalized';
+      }
+    } catch {
+      return 'the page path is not valid';
+    }
+    return undefined;
   }
 
   /** The entity whose docs dir is the deepest one containing a changed file. */

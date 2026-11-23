@@ -126,6 +126,8 @@ export class OctokitGithubGateway implements GithubGateway {
 
   private readonly committers = new Map<string, Promise<CommitIdentity>>();
 
+  private readonly botLogins = new Map<string, Promise<string>>();
+
   static fromConfig(
     config: Config,
     options: Pick<OctokitGatewayOptions, 'fetch'> = {},
@@ -157,6 +159,38 @@ export class OctokitGithubGateway implements GithubGateway {
     if (this.options.committer) {
       return this.options.committer;
     }
+    const { key } = this.appFor(repo);
+    let pending = this.committers.get(key);
+    if (!pending) {
+      pending = this.lookupCommitter(repo);
+      this.committers.set(key, pending);
+      pending.catch(() => this.committers.delete(key));
+    }
+    return pending;
+  }
+
+  async getAppBotLogin(repo: RepoRef): Promise<string> {
+    try {
+      return await this.botLoginOf(repo);
+    } catch (error) {
+      throw new Error(
+        `Could not resolve the GitHub App login (${githubMessage(error)})`,
+      );
+    }
+  }
+
+  private botLoginOf(repo: RepoRef): Promise<string> {
+    const { key, baseUrl, appId, privateKey } = this.appFor(repo);
+    let pending = this.botLogins.get(key);
+    if (!pending) {
+      pending = this.lookupBotLogin(baseUrl, appId, privateKey);
+      this.botLogins.set(key, pending);
+      pending.catch(() => this.botLogins.delete(key));
+    }
+    return pending;
+  }
+
+  private appFor(repo: RepoRef) {
     const integration = this.integrations.github.byHost(repo.host);
     const owner = repo.owner.toLowerCase();
     const apps = integration?.config.apps ?? [];
@@ -169,40 +203,36 @@ export class OctokitGithubGateway implements GithubGateway {
         `Cannot resolve the GitHub App identity for ${repo.owner}: no matching app in integrations.github. Set docsStudio.committer to override it`,
       );
     }
-    const key = `${repo.host}:${app.appId}`;
-    let pending = this.committers.get(key);
-    if (!pending) {
-      pending = this.lookupAppIdentity(
-        repo,
-        integration.config.apiBaseUrl,
-        app.appId,
-        app.privateKey,
-      );
-      this.committers.set(key, pending);
-      pending.catch(() => this.committers.delete(key));
-    }
-    return pending;
+    return {
+      key: `${repo.host}:${app.appId}`,
+      baseUrl: integration.config.apiBaseUrl,
+      appId: app.appId,
+      privateKey: app.privateKey,
+    };
   }
 
-  private async lookupAppIdentity(
-    repo: RepoRef,
+  private async lookupBotLogin(
     baseUrl: string | undefined,
     appId: number,
     privateKey: string,
-  ): Promise<CommitIdentity> {
+  ): Promise<string> {
+    const appOctokit = new Octokit({
+      auth: createAppJwt(appId, privateKey),
+      baseUrl,
+      userAgent: 'backstage-docs-studio',
+      request: this.options.fetch ? { fetch: this.options.fetch } : undefined,
+    });
+    const { data: app } = await appOctokit.apps.getAuthenticated();
+    const slug = app?.slug;
+    if (!slug) {
+      throw new Error('the App has no slug');
+    }
+    return `${slug}[bot]`;
+  }
+
+  private async lookupCommitter(repo: RepoRef): Promise<CommitIdentity> {
     try {
-      const appOctokit = new Octokit({
-        auth: createAppJwt(appId, privateKey),
-        baseUrl,
-        userAgent: 'backstage-docs-studio',
-        request: this.options.fetch ? { fetch: this.options.fetch } : undefined,
-      });
-      const { data: app } = await appOctokit.apps.getAuthenticated();
-      const slug = app?.slug;
-      if (!slug) {
-        throw new Error('the App has no slug');
-      }
-      const botLogin = `${slug}[bot]`;
+      const botLogin = await this.botLoginOf(repo);
       // App JWTs are only accepted by /app endpoints; the user lookup goes
       // through the installation token instead.
       const installationOctokit = await this.octokit(repo);
@@ -659,17 +689,32 @@ export class OctokitGithubGateway implements GithubGateway {
     sha: string,
     context: string,
   ): Promise<CommitStatusState | undefined> {
+    const botLogin = (await this.getAppBotLogin(repo)).toLowerCase();
     const octokit = await this.octokit(repo);
     return this.run('reading the commit status', async () => {
-      const { data } = await octokit.repos.getCombinedStatusForRef({
-        owner: repo.owner,
-        repo: repo.repo,
-        ref: sha,
-        per_page: 100,
-      });
-      return data.statuses.find(s => s.context === context)?.state as
-        | CommitStatusState
-        | undefined;
+      // Newest first. Only the App's own statuses count: anyone with write
+      // access can create a status with the same context.
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const { data } = await octokit.repos.listCommitStatusesForRef({
+          owner: repo.owner,
+          repo: repo.repo,
+          ref: sha,
+          per_page: 100,
+          page,
+        });
+        const own = data.find(
+          s =>
+            s.context === context &&
+            s.creator?.login?.toLowerCase() === botLogin,
+        );
+        if (own) {
+          return own.state as CommitStatusState;
+        }
+        if (data.length < 100) {
+          break;
+        }
+      }
+      return undefined;
     });
   }
 

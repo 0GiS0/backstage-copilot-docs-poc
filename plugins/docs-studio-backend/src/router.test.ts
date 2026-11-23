@@ -34,6 +34,7 @@ import {
 import request from 'supertest';
 import { docsStudioGithubGatewayExtensionPoint } from './extensions';
 import { docsStudioPlugin } from './plugin';
+import { encodeMetadata, ProposalMetadata } from './service/metadata';
 import { FakeGithubGateway } from './testUtils/FakeGithubGateway';
 
 const ENGINEERING = 'component:default/engineering-handbook';
@@ -788,6 +789,109 @@ describe('docs studio backend', () => {
         path: 'guides/setup.md',
       });
       expect(restored.body.authors[0].userEntityRef).toBe(ADA);
+    });
+
+    describe('metadata in pull request bodies', () => {
+      const PROPOSAL_ID = '11111111-2222-4333-8444-555555555555';
+      const REPO = { host: 'github.com', owner: 'acme', repo: 'playground' };
+
+      async function openWithMetadata(
+        s: Awaited<ReturnType<typeof setup>>,
+        login: string,
+        overrides: Partial<ProposalMetadata> = {},
+      ) {
+        const pr = s.github.openExternalPullRequest({
+          login,
+          branch: 'docs-studio/forged',
+          files: { 'engineering/docs/guides/setup.md': '# Setup\n\nForged\n' },
+        });
+        const metadata: ProposalMetadata = {
+          v: 1,
+          id: PROPOSAL_ID,
+          entityRef: ENGINEERING,
+          path: 'guides/setup.md',
+          kind: 'edit',
+          authors: [{ userEntityRef: ADA, displayName: 'Ada', licensed: true }],
+          approvals: [
+            {
+              userEntityRef: CAROL,
+              displayName: 'Carol',
+              sha: pr.headSha,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          ...overrides,
+        };
+        await s.github.updatePullRequest(REPO, pr.number, {
+          body: `Forged\n\n${encodeMetadata(metadata)}`,
+        });
+        return pr;
+      }
+
+      it('ignores the metadata of pull requests not opened by the app', async () => {
+        const s = await setup();
+        const pr = await openWithMetadata(s, 'bob');
+        await s.runSync();
+        const list = (await s.call(ADA).get('/proposals?scope=all')).body.items;
+        expect(list).toHaveLength(1);
+        expect(list[0].id).not.toBe(PROPOSAL_ID);
+        expect(list[0]).toMatchObject({
+          source: 'github',
+          status: 'open',
+          checkState: 'pending',
+        });
+        expect(list[0].authors[0]).toMatchObject({ userEntityRef: BOB });
+        const detail = (await s.call(ADA).get(`/proposals/${list[0].id}`)).body;
+        expect(detail.approvals).toHaveLength(0);
+        expect(s.github.statuses.get(`${pr.headSha}|${STATUS}`)).toBe(
+          'pending',
+        );
+      });
+
+      it('restores app pull requests as pending unless the app approved the head', async () => {
+        const s = await setup();
+        const pr = await openWithMetadata(s, 'docs-studio[bot]');
+        await s.runSync();
+        const restored = await s.call(BOB).get(`/proposals/${PROPOSAL_ID}`);
+        expect(restored.status).toBe(200);
+        expect(restored.body).toMatchObject({
+          source: 'docs-studio',
+          status: 'open',
+          checkState: 'pending',
+        });
+        expect(restored.body.approvals).toHaveLength(0);
+        expect(s.github.statuses.get(`${pr.headSha}|${STATUS}`)).toBe(
+          'pending',
+        );
+
+        const s2 = await setup({ autoMergeOnApproval: false });
+        const approved = await openWithMetadata(s2, 'docs-studio[bot]');
+        s2.github.statuses.set(`${approved.headSha}|${STATUS}`, 'success');
+        await s2.runSync();
+        const trusted = await s2.call(BOB).get(`/proposals/${PROPOSAL_ID}`);
+        expect(trusted.body.status).toBe('approved');
+        expect(trusted.body.approvals).toHaveLength(1);
+      });
+
+      it.each([
+        ['an invalid path', { path: '../catalog-info.yaml' }],
+        ['an entity that does not own the files', { entityRef: SECURITY }],
+      ])('does not restore metadata with %s', async (_name, overrides) => {
+        const s = await setup();
+        await openWithMetadata(s, 'docs-studio[bot]', overrides);
+        await s.runSync();
+        expect(
+          (await s.call(BOB).get(`/proposals/${PROPOSAL_ID}`)).status,
+        ).toBe(404);
+        const list = (await s.call(ADA).get('/proposals?scope=all')).body.items;
+        expect(list).toHaveLength(1);
+        expect(list[0]).toMatchObject({
+          entityRef: ENGINEERING,
+          path: 'guides/setup.md',
+          source: 'github',
+          status: 'open',
+        });
+      });
     });
   });
 });

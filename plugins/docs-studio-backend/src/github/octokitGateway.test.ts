@@ -72,6 +72,19 @@ function setup(options: { failApp?: boolean; committerConfig?: boolean } = {}) {
         return json(201, { sha: 'commit2' });
       case 'PATCH /repos/acme/docs/git/refs/heads/feature':
         return json(200, { object: { sha: 'commit2' } });
+      case 'GET /repos/acme/docs/commits/head1/statuses':
+        return json(200, [
+          {
+            context: 'docs-studio/approval',
+            state: 'success',
+            creator: { login: 'mallory' },
+          },
+          {
+            context: 'docs-studio/approval',
+            state: 'pending',
+            creator: { login: 'docs-bot[bot]' },
+          },
+        ]);
       default:
         return json(500, { message: `unexpected ${route}` });
     }
@@ -192,5 +205,16 @@ describe('OctokitGithubGateway committer', () => {
     );
 
     expect(calls.filter(c => c.method !== 'GET')).toEqual([]);
+  });
+});
+
+describe('OctokitGithubGateway commit statuses', () => {
+  it('only reads the statuses created by the App', async () => {
+    const { gateway } = setup();
+
+    await expect(gateway.getAppBotLogin(REPO)).resolves.toBe('docs-bot[bot]');
+    await expect(
+      gateway.getCommitStatusState(REPO, 'head1', 'docs-studio/approval'),
+    ).resolves.toBe('pending');
   });
 });
