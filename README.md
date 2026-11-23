@@ -4,8 +4,11 @@ Prueba de concepto de un portal de desarrolladores con [Backstage](https://backs
 
 1. **Publica como TechDocs** la documentación de un equipo (handbooks en Markdown con MkDocs) alojada en un repositorio de GitHub: el _playground_ [`AgenticOrganization/docs-studio-playground`](https://github.com/AgenticOrganization/docs-studio-playground) (privado), con los handbooks `engineering-handbook` y `security-handbook`. Se registra en el catálogo con una _location_ de tipo URL.
 2. **Indexa esa documentación en Search** (colectores de catálogo y de TechDocs).
-3. **Añade un chat con el GitHub Copilot SDK** que responde preguntas sobre el handbook usando las _MCP actions_ de Backstage (`search.query`, acciones de catálogo y de TechDocs) y **cita la página de origen**.
+3. **Añade un chat con el Microsoft Copilot SDK (antes GitHub Copilot SDK)** que responde preguntas sobre el handbook usando las _MCP actions_ de Backstage (`search.query`, acciones de catálogo y de TechDocs) y **cita la página de origen**.
 4. **Permite leer y editar esa documentación desde Backstage sin cuenta de GitHub** con **Docs Studio**: personas que solo tienen Microsoft Entra ID pueden leer TechDocs según sus permisos, editar páginas, proponer cambios y crear páginas nuevas. Una GitHub App convierte cada propuesta en una rama y una _pull request_, y la aprobación se hace en Backstage (ver [Docs Studio](#docs-studio)).
+
+> [!NOTE]
+> El 28 de octubre de 2026 GitHub [anunció](https://github.blog/changelog/2026-10-28-github-copilot-sdk-is-becoming-microsoft-copilot-sdk/) que el **GitHub Copilot SDK** pasa a llamarse **Microsoft Copilot SDK**. El paquete de npm sigue siendo `@github/copilot-sdk`.
 
 ## Arquitectura
 
@@ -27,7 +30,7 @@ flowchart LR
   docs[(GitHub<br/>AgenticOrganization/<br/>docs-studio-playground)] -- catalog-info.yaml + mkdocs.yml --> catalog
   docs -- Markdown --> techdocs
   techdocs --> search
-  chat -- Copilot SDK --> copilot[(GitHub Copilot)]
+  chat -- Microsoft Copilot SDK --> copilot[(GitHub Copilot)]
   copilot -. tool calls .-> chat
   chat -- token del usuario --> mcp
   mcp --> search
@@ -39,7 +42,7 @@ flowchart LR
 ```
 
 - `plugins/copilot-chat`: página de chat del frontend (nuevo _frontend system_), con selector de modelo y sugerencias.
-- `plugins/copilot-chat-backend`: endpoint SSE `/api/copilot-chat/chat` que crea una sesión del Copilot SDK con el token de GitHub del usuario y le da como herramientas las _MCP actions_ de Backstage.
+- `plugins/copilot-chat-backend`: endpoint SSE `/api/copilot-chat/chat` que crea una sesión del Microsoft Copilot SDK con el token de GitHub del usuario y le da como herramientas las _MCP actions_ de Backstage.
 - `plugins/docs-studio`, `plugins/docs-studio-backend` y `plugins/docs-studio-common`: Docs Studio (ver [Docs Studio](#docs-studio)).
 - `packages/backend/src/modules/techdocsRootIndex.ts`: genera una página de inicio de TechDocs cuando el `docs_dir` del repositorio de documentación no tiene `index.md`.
 - `packages/backend/src/modules/docsStudioPolicy.ts` y `docsStudioCatalogRules.ts`: política de permisos de ejemplo de la aplicación (lectura de entidades restringidas y aprobación de propuestas).
@@ -105,13 +108,13 @@ También se ignora `.docs-studio-data`, la base de datos SQLite local donde se g
 
 ## Versiones
 
-| Componente                  | Versión                          |
-| --------------------------- | -------------------------------- |
-| Backstage                   | 1.56.0 (nuevo _frontend system_) |
-| Node.js                     | 24                               |
-| Yarn                        | 4.13.0                           |
-| `@github/copilot-sdk`       | 1.0.29                           |
-| Modelo por defecto del chat | `claude-haiku-4.5`               |
+| Componente                                                              | Versión                          |
+| ----------------------------------------------------------------------- | -------------------------------- |
+| Backstage                                                               | 1.56.0 (nuevo _frontend system_) |
+| Node.js                                                                 | 24                               |
+| Yarn                                                                    | 4.13.0                           |
+| `@github/copilot-sdk` (Microsoft Copilot SDK, antes GitHub Copilot SDK) | 1.0.29                           |
+| Modelo por defecto del chat                                             | `claude-haiku-4.5`               |
 
 ## Requisitos previos
 
@@ -196,6 +199,38 @@ Entidades del repositorio [`AgenticOrganization/docs-studio-playground`](https:/
 5. **Ver en TechDocs**: tras el merge TechDocs reconstruye la página y el cambio aparece en _Rollback Procedure_ (la sincronización puede tardar hasta un minuto). Busca `rollback` en **Search** para ver el resultado indexado.
 6. **Entidad restringida**: abre `security-handbook`. Como Arya no aparece (ni en el catálogo, ni en TechDocs, ni en Search); como **Sansa** (`security-team`) sí.
 7. **Copilot Chat** (con **Jon**, que inicia sesión con Microsoft y la primera vez conecta su cuenta de GitHub desde el chat): pregunta _What is the rollback procedure?_ o _What are the severity levels?_. El agente llama a `search.query` sobre TechDocs y responde con un apartado **Sources** que enlaza a la página de TechDocs. Con Arya el chat aparece deshabilitado.
+
+## Dependencias y Dependabot
+
+Dependabot está configurado en `.github/dependabot.yml` y revisa las dependencias cada lunes a las 06:00 (hora de Madrid):
+
+- `npm` en la raíz: cubre todos los workspaces de Yarn 4 (`packages/*` y `plugins/*`) a través de `yarn.lock`.
+- `docker`: la imagen base de `packages/backend/Dockerfile`.
+
+Las actualizaciones se agrupan para reducir el número de PRs:
+
+| Grupo             | Qué incluye                                                              |
+| ----------------- | ------------------------------------------------------------------------ |
+| `backstage`       | Todos los paquetes `@backstage/*` en una única PR                        |
+| `npm-minor-patch` | Versiones minor y patch del resto de dependencias                        |
+| `security`        | Actualizaciones de seguridad, agrupadas                                  |
+| Sin grupo         | Las major de paquetes que no son de Backstage llegan en PRs individuales |
+
+Las PRs llevan la etiqueta `📦 dependencies` y los commits usan `chore(deps): …` o `chore(deps-dev): …`.
+
+Hay un `cooldown` de 3 días para las actualizaciones de versión, alineado con `npmMinimalAgeGate: 3d` de `.yarnrc.yml` (Dependabot no lee esa opción; ver [dependabot-core#14134](https://github.com/dependabot/dependabot-core/issues/14134)). Las actualizaciones de seguridad no esperan.
+
+Para subir Backstage completo no basta con la PR agrupada, porque solo cambia versiones de paquetes. Una subida completa (incluye `backstage.json` y cambios de plantilla) se hace con:
+
+```bash
+yarn backstage-cli versions:bump
+```
+
+Muchas alertas de seguridad no generan PR porque Backstage fija dependencias transitivas vulnerables (por ejemplo, `@backstage/cli` → `undici`) y Dependabot marca `security_update_not_possible`. Se corrigen al subir la versión de Backstage.
+
+La imagen `node:24-trixie-slim` va fijada por digest. Dependabot abre PRs cuando cambia el digest (parches de Node y del sistema). Las versiones major de Node se ignoran porque deben cambiar a la vez que `engines` en `package.json` y que la versión de Node del host.
+
+Para descartar una actualización concreta, comenta en la PR `@dependabot ignore this major version` (o `@dependabot ignore this minor version` / `@dependabot ignore this dependency`).
 
 ## Limitaciones conocidas
 
