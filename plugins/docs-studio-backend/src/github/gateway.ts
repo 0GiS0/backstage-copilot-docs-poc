@@ -52,6 +52,13 @@ export interface GithubPullRequestFile {
   previousPath?: string;
 }
 
+export interface GithubPullRequestCommit {
+  sha: string;
+  /** Unset when GitHub cannot link the commit email to an account. */
+  authorLogin?: string;
+  committerLogin?: string;
+}
+
 export interface CommitIdentity {
   name: string;
   email: string;
@@ -125,6 +132,11 @@ export interface GithubGateway {
     repo: RepoRef,
     number: number,
   ): Promise<GithubPullRequestFile[]>;
+  /** Every commit of the pull request, oldest first. */
+  listPullRequestCommits(
+    repo: RepoRef,
+    number: number,
+  ): Promise<GithubPullRequestCommit[]>;
   /** Throws `MergeBlockedError` when GitHub refuses to merge. */
   mergePullRequest(
     repo: RepoRef,

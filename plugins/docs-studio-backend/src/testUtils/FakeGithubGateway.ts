@@ -24,6 +24,7 @@ import {
   GithubFile,
   GithubGateway,
   GithubPullRequest,
+  GithubPullRequestCommit,
   GithubPullRequestFile,
   RepoRef,
 } from '../github/gateway';
@@ -35,6 +36,12 @@ export interface RecordedCommit {
   message: string;
   author: CommitIdentity;
   paths: string[];
+}
+
+interface CommitInfo {
+  parent?: string;
+  authorLogin?: string;
+  committerLogin?: string;
 }
 
 interface FakePullRequest {
@@ -67,6 +74,7 @@ export class FakeGithubGateway implements GithubGateway {
 
   private readonly snapshots = new Map<string, Tree>();
   private readonly heads = new Map<string, string>();
+  private readonly commitInfo = new Map<string, CommitInfo>();
   private readonly pulls = new Map<number, FakePullRequest>();
   private counter = 0;
 
@@ -80,10 +88,18 @@ export class FakeGithubGateway implements GithubGateway {
     this.setHead(defaultBranch, tree);
   }
 
-  private setHead(branch: string, tree: Tree): string {
+  private setHead(
+    branch: string,
+    tree: Tree,
+    info: Omit<CommitInfo, 'parent'> = {},
+  ): string {
     this.counter += 1;
     const sha = `commit-${this.counter}`;
     this.snapshots.set(sha, tree);
+    this.commitInfo.set(sha, {
+      ...info,
+      parent: this.heads.get(branch) ?? this.heads.get(this.defaultBranch),
+    });
     this.heads.set(branch, sha);
     return sha;
   }
@@ -92,11 +108,14 @@ export class FakeGithubGateway implements GithubGateway {
     return this.snapshots.get(this.heads.get(ref) ?? ref);
   }
 
-  /** Simulates a push made directly on GitHub. */
-  push(branch: string, path: string, content: string): string {
+  /** Simulates a push made directly on GitHub, by `login` if given. */
+  push(branch: string, path: string, content: string, login?: string): string {
     const tree = new Map(this.tree(branch));
     tree.set(path, Buffer.from(content));
-    return this.setHead(branch, tree);
+    return this.setHead(branch, tree, {
+      authorLogin: login,
+      committerLogin: login,
+    });
   }
 
   /** Simulates a pull request opened by someone else on GitHub. */
@@ -112,7 +131,10 @@ export class FakeGithubGateway implements GithubGateway {
     for (const [path, content] of Object.entries(options.files)) {
       tree.set(path, Buffer.from(content));
     }
-    this.setHead(options.branch, tree);
+    this.setHead(options.branch, tree, {
+      authorLogin: options.login,
+      committerLogin: options.login,
+    });
     return this.createPullRequestSync({
       title: options.title ?? 'Some change',
       body: options.body ?? 'Fixes a typo',
@@ -258,7 +280,15 @@ export class FakeGithubGateway implements GithubGateway {
       author: options.author,
       paths: options.files.map(f => f.path),
     });
-    return { commitSha: this.setHead(options.branch, tree) };
+    const noreply = /^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$/i.exec(
+      options.author.email,
+    );
+    return {
+      commitSha: this.setHead(options.branch, tree, {
+        authorLogin: noreply?.[1],
+        committerLogin: this.botLogin,
+      }),
+    };
   }
 
   async createPullRequest(
@@ -303,6 +333,25 @@ export class FakeGithubGateway implements GithubGateway {
       }
     }
     return files;
+  }
+
+  async listPullRequestCommits(
+    _repo: RepoRef,
+    number: number,
+  ): Promise<GithubPullRequestCommit[]> {
+    const pr = this.pullRequest(number);
+    const commits: GithubPullRequestCommit[] = [];
+    let sha: string | undefined = pr.headSha;
+    while (sha && sha !== pr.baseSha) {
+      const info: CommitInfo = this.commitInfo.get(sha) ?? {};
+      commits.unshift({
+        sha,
+        authorLogin: info.authorLogin,
+        committerLogin: info.committerLogin,
+      });
+      sha = info.parent;
+    }
+    return commits;
   }
 
   async mergePullRequest(

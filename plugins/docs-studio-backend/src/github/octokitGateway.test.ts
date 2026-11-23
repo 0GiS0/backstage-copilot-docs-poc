@@ -85,6 +85,15 @@ function setup(options: { failApp?: boolean; committerConfig?: boolean } = {}) {
             creator: { login: 'docs-bot[bot]' },
           },
         ]);
+      case 'GET /repos/acme/docs/pulls/7/commits':
+        return json(200, [
+          {
+            sha: 'c1',
+            author: { login: 'ada' },
+            committer: { login: 'web-flow' },
+          },
+          { sha: 'c2', author: null, committer: { login: 'bob' } },
+        ]);
       default:
         return json(500, { message: `unexpected ${route}` });
     }
@@ -216,5 +225,16 @@ describe('OctokitGithubGateway commit statuses', () => {
     await expect(
       gateway.getCommitStatusState(REPO, 'head1', 'docs-studio/approval'),
     ).resolves.toBe('pending');
+  });
+});
+
+describe('OctokitGithubGateway pull request commits', () => {
+  it('maps the GitHub accounts of the authors and committers', async () => {
+    const { gateway } = setup();
+
+    await expect(gateway.listPullRequestCommits(REPO, 7)).resolves.toEqual([
+      { sha: 'c1', authorLogin: 'ada', committerLogin: 'web-flow' },
+      { sha: 'c2', authorLogin: undefined, committerLogin: 'bob' },
+    ]);
   });
 });

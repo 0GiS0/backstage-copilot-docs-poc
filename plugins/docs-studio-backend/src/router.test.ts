@@ -881,6 +881,75 @@ describe('docs studio backend', () => {
       expect(s.github.statuses.get(`${head}|${STATUS}`)).toBe('pending');
     });
 
+    it('makes people who push to a proposal on GitHub its authors', async () => {
+      const s = await setup({ autoMergeOnApproval: false });
+      const { sha } = await pageSha(s);
+      const created = await s
+        .call(ADA)
+        .post('/proposals', edit('# Setup\n\nImproved\n', sha));
+      const head = s.github.push(
+        created.body.branch,
+        'engineering/docs/guides/setup.md',
+        '# Setup\n\nPushed by Bob\n',
+        'bob',
+      );
+      await s.runSync();
+
+      const detail = (await s.call(BOB).get(`/proposals/${created.body.id}`))
+        .body;
+      expect(detail.headSha).toBe(head);
+      expect(detail.authors.map((a: any) => a.userEntityRef)).toEqual([
+        ADA,
+        BOB,
+      ]);
+      expect(detail.permissions).toMatchObject({
+        canApprove: false,
+        approveBlockedReason: 'author',
+      });
+      const approve = await s
+        .call(BOB)
+        .post(`/proposals/${created.body.id}/approve`, {});
+      expect(approve.status).toBe(403);
+      expect(s.github.statuses.get(`${head}|${STATUS}`)).toBe('pending');
+    });
+
+    it('imports a native pull request that another approver can approve and merge', async () => {
+      const s = await setup();
+      const pr = s.github.openExternalPullRequest({
+        login: 'bob',
+        branch: 'bob/new-guide',
+        files: { 'engineering/docs/guides/new.md': '# New guide\n' },
+      });
+      await s.runSync();
+
+      const toApprove = (await s.call(ADA).get('/proposals?scope=toApprove'))
+        .body.items;
+      expect(toApprove).toHaveLength(1);
+      expect(toApprove[0]).toMatchObject({
+        entityRef: ENGINEERING,
+        path: 'guides/new.md',
+        source: 'github',
+        status: 'open',
+        prNumber: pr.number,
+      });
+      expect(toApprove[0].authors.map((a: any) => a.userEntityRef)).toEqual([
+        BOB,
+      ]);
+      expect(
+        (await s.call(BOB).get('/proposals?scope=toApprove')).body.items,
+      ).toHaveLength(0);
+
+      const approve = await s
+        .call(ADA)
+        .post(`/proposals/${toApprove[0].id}/approve`, {});
+      expect(approve.status).toBe(200);
+      expect(approve.body.status).toBe('merged');
+      expect(s.github.pullRequest(pr.number).merged).toBe(true);
+      expect(s.github.fileAt('main', 'engineering/docs/guides/new.md')).toBe(
+        '# New guide\n',
+      );
+    });
+
     it('skips repositories without an app installation', async () => {
       const s = await setup();
       s.github.hasInstallation = false;

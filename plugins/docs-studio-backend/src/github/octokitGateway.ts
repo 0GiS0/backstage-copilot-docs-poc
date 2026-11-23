@@ -30,6 +30,7 @@ import {
   GithubFile,
   GithubGateway,
   GithubPullRequest,
+  GithubPullRequestCommit,
   GithubPullRequestFile,
   RepoRef,
 } from './gateway';
@@ -629,6 +630,42 @@ export class OctokitGithubGateway implements GithubGateway {
       }
       // Callers check that every changed file is in scope: never truncate.
       throw new Error('The pull request changes too many files to be checked');
+    });
+  }
+
+  async listPullRequestCommits(
+    repo: RepoRef,
+    number: number,
+  ): Promise<GithubPullRequestCommit[]> {
+    const octokit = await this.octokit(repo);
+    return this.run('listing pull request commits', async () => {
+      const result: GithubPullRequestCommit[] = [];
+      // GitHub returns at most 250 commits: a longer list may be incomplete.
+      for (let page = 1; page <= 3; page++) {
+        const { data } = await octokit.pulls.listCommits({
+          owner: repo.owner,
+          repo: repo.repo,
+          pull_number: number,
+          per_page: 100,
+          page,
+        });
+        for (const commit of data) {
+          result.push({
+            sha: commit.sha,
+            authorLogin: commit.author?.login ?? undefined,
+            committerLogin: commit.committer?.login ?? undefined,
+          });
+        }
+        if (data.length < 100) {
+          break;
+        }
+      }
+      if (result.length >= 250) {
+        throw new Error(
+          'The pull request has too many commits to check who wrote them',
+        );
+      }
+      return result;
     });
   }
 

@@ -72,6 +72,7 @@ import {
   GithubGateway,
   GithubPullRequest,
   GithubPullRequestFile,
+  RepoRef,
 } from '../github/gateway';
 import {
   ContentConflictError,
@@ -150,6 +151,16 @@ const LIST_STATE = {
 const OUT_OF_SCOPE_MESSAGE =
   'The pull request also changes files outside this documentation, so it cannot be approved or published in Docs Studio';
 const OUT_OF_SCOPE_DESCRIPTION = 'Changes files outside this documentation';
+
+/** The App itself, GitHub's web committer and other bots. */
+function isAutomationLogin(login: string, botLogin: string): boolean {
+  const lower = login.toLowerCase();
+  return (
+    lower === botLogin.toLowerCase() ||
+    lower === 'web-flow' ||
+    lower.endsWith('[bot]')
+  );
+}
 
 /** Serializes the changes of a page: commits, reviews and syncs. */
 function lockKey(record: { entityRef: string; path: string }): string {
@@ -741,6 +752,12 @@ export class ProposalService {
       return (await this.store.get(record.id))!;
     }
     if (pr.headSha !== record.headSha) {
+      // Whoever pushed the new commits must not be able to approve them.
+      const pushers = await this.newCommitAuthors(
+        this.repoRef(record),
+        record.prNumber,
+        record.authors,
+      );
       await this.store.update(record.id, {
         status: 'open',
         headSha: pr.headSha,
@@ -751,6 +768,15 @@ export class ProposalService {
         sha: pr.headSha,
         message: 'New commits were pushed to the branch',
       });
+      for (const pusher of pushers) {
+        await this.store.addAuthor(record.id, pusher);
+        await this.store.addEvent(record.id, {
+          type: 'joined',
+          actor: publicAuthor(pusher),
+          sha: pr.headSha,
+          message: 'Pushed commits to the branch on GitHub',
+        });
+      }
       const updated = (await this.store.get(record.id))!;
       await this.applyCommitStatus(updated);
       await this.updatePullRequestBody(updated);
@@ -840,6 +866,10 @@ export class ProposalService {
         };
       }
     }
+    const authors = [
+      author,
+      ...(await this.newCommitAuthors(docs.repo, pr.number, [author])),
+    ];
     const record = this.recordFromPullRequest({
       id: randomUUID(),
       entityRef,
@@ -848,7 +878,7 @@ export class ProposalService {
       path,
       kind: primary.status === 'added' ? 'create' : 'edit',
       source: 'github',
-      authors: [author],
+      authors,
     });
     await this.store.insert(record, [
       {
@@ -883,7 +913,11 @@ export class ProposalService {
     ) {
       return undefined;
     }
-    const authors = metadata.authors.flatMap(sanitizeAuthor);
+    const claimed = metadata.authors.flatMap(sanitizeAuthor);
+    const authors = [
+      ...claimed,
+      ...(await this.newCommitAuthors(docs.repo, pr.number, claimed)),
+    ];
     const record = this.recordFromPullRequest({
       id: metadata.id,
       entityRef,
@@ -1374,6 +1408,58 @@ export class ProposalService {
         record.requiredApprovals,
       ),
     };
+  }
+
+  /**
+   * The people who authored or committed commits of the pull request and are
+   * not among `existing` yet, as authors. Logins without a catalog user
+   * cannot approve in Docs Studio and are skipped, as are the App and other
+   * automation accounts.
+   */
+  private async newCommitAuthors(
+    repo: RepoRef,
+    prNumber: number,
+    existing: StoredAuthor[],
+  ): Promise<StoredAuthor[]> {
+    const [commits, botLogin] = await Promise.all([
+      this.gateway.listPullRequestCommits(repo, prNumber),
+      this.gateway.getAppBotLogin(repo),
+    ]);
+    const logins = new Map<string, string>();
+    for (const commit of commits) {
+      for (const login of [commit.authorLogin, commit.committerLogin]) {
+        if (login && !isAutomationLogin(login, botLogin)) {
+          logins.set(login.toLowerCase(), login);
+        }
+      }
+    }
+    const known = new Set<string>();
+    for (const author of existing) {
+      if (author.userEntityRef) {
+        known.add(author.userEntityRef);
+      }
+      if (author.githubLogin) {
+        known.add(author.githubLogin.toLowerCase());
+      }
+    }
+    const added: StoredAuthor[] = [];
+    for (const [key, login] of logins) {
+      if (known.has(key)) {
+        continue;
+      }
+      const mapped = await this.identity.fromGithubLogin(login);
+      if (!mapped || known.has(mapped.userEntityRef)) {
+        continue;
+      }
+      known.add(mapped.userEntityRef);
+      added.push({
+        userEntityRef: mapped.userEntityRef,
+        displayName: mapped.displayName,
+        licensed: true,
+        githubLogin: login,
+      });
+    }
+    return added;
   }
 
   /**

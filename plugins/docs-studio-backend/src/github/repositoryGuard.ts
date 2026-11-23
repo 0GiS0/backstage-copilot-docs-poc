@@ -170,6 +170,11 @@ export class RepositoryGuardGateway implements GithubGateway {
     return this.inner.listPullRequestFiles(repo, number);
   }
 
+  async listPullRequestCommits(repo: RepoRef, number: number) {
+    this.check(repo);
+    return this.inner.listPullRequestCommits(repo, number);
+  }
+
   async mergePullRequest(
     repo: RepoRef,
     number: number,
