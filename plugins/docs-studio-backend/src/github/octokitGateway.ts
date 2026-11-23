@@ -624,10 +624,11 @@ export class OctokitGithubGateway implements GithubGateway {
           });
         }
         if (data.length < 100) {
-          break;
+          return result;
         }
       }
-      return result;
+      // Callers check that every changed file is in scope: never truncate.
+      throw new Error('The pull request changes too many files to be checked');
     });
   }
 

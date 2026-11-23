@@ -24,11 +24,7 @@ import { CATALOG_FILTER_EXISTS } from '@backstage/catalog-client';
 import { CatalogService } from '@backstage/plugin-catalog-node';
 import { ProposalStore } from '../database/ProposalStore';
 import { ANNOTATION_TECHDOCS_REF } from '../docs/location';
-import {
-  DocsLocation,
-  DocsResolver,
-  toDocsRelativePath,
-} from '../docs/resolver';
+import { DocsLocation, DocsResolver, docsScopeDepth } from '../docs/resolver';
 import { GithubGateway, GithubPullRequest, RepoRef } from '../github/gateway';
 import { decodeMetadata, ProposalMetadata } from '../service/metadata';
 import { ProposalService } from '../service/ProposalService';
@@ -140,14 +136,20 @@ export class Synchronizer {
           continue;
         }
         const files = await gateway.listPullRequestFiles(repo, pr.number);
-        const owner = this.mostSpecificOwner(
+        const ownership = this.owningEntity(
           locations,
           files.map(f => f.path),
         );
-        if (!owner) {
+        if ('skip' in ownership) {
+          if (ownership.skip) {
+            logger.info(
+              `Not importing pull request #${pr.number} of ${repo.owner}/${repo.repo}: ${ownership.skip}`,
+            );
+          }
           this.ignored.add(ignoreKey);
           continue;
         }
+        const owner = ownership.owner;
         const metadata = decodeMetadata(pr.body);
         if (metadata) {
           const rejection = await this.metadataRejection(
@@ -233,20 +235,55 @@ export class Synchronizer {
     return undefined;
   }
 
-  /** The entity whose docs dir is the deepest one containing a changed file. */
-  private mostSpecificOwner(
+  /**
+   * The only entity whose documentation contains every changed file. A pull
+   * request that also changes other files cannot be imported: its readers
+   * and approvers would see or approve content they may not have access to.
+   * `skip` is empty when the pull request does not touch any documentation.
+   */
+  private owningEntity(
     locations: DocsLocation[],
     paths: string[],
-  ): DocsLocation | undefined {
-    let best: DocsLocation | undefined;
-    for (const docs of locations) {
-      if (!paths.some(p => toDocsRelativePath(docs, p) !== undefined)) {
-        continue;
-      }
-      if (!best || docs.docsDir.length > best.docsDir.length) {
+  ): { owner: DocsLocation } | { skip: string } {
+    const owners = new Map<string, DocsLocation>();
+    let outside = 0;
+    for (const path of paths) {
+      let best: DocsLocation | undefined;
+      let bestDepth = -1;
+      let tie = false;
+      for (const docs of locations) {
+        const depth = docsScopeDepth(docs, path);
+        if (depth === undefined || depth < bestDepth) {
+          continue;
+        }
+        if (depth === bestDepth) {
+          tie = tie || best?.entityRef !== docs.entityRef;
+          continue;
+        }
         best = docs;
+        bestDepth = depth;
+        tie = false;
+      }
+      if (!best || tie) {
+        outside++;
+      } else {
+        owners.set(best.entityRef, best);
       }
     }
-    return best;
+    const [owner, ...others] = [...owners.values()];
+    if (!owner) {
+      return { skip: '' };
+    }
+    if (others.length > 0) {
+      return {
+        skip: 'it changes the documentation of more than one entity',
+      };
+    }
+    if (outside > 0) {
+      return {
+        skip: `it changes ${outside} file(s) outside the documentation of ${owner.entityRef}`,
+      };
+    }
+    return { owner };
   }
 }

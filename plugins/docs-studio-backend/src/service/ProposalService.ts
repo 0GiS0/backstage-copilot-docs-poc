@@ -15,6 +15,7 @@
  */
 
 import {
+  AuthService,
   BackstageCredentials,
   BackstageUserPrincipal,
   LoggerService,
@@ -52,6 +53,7 @@ import { ProposalStore } from '../database/ProposalStore';
 import {
   DocsLocation,
   DocsResolver,
+  isInDocsScope,
   toDocsRelativePath,
   toRepoPath,
 } from '../docs/resolver';
@@ -121,6 +123,7 @@ export interface ProposalListQuery {
 }
 
 export interface ProposalServiceOptions {
+  auth: AuthService;
   store: ProposalStore;
   gateway: GithubGateway;
   resolver: DocsResolver;
@@ -143,6 +146,21 @@ const LIST_STATE = {
   closed: 'finished',
   any: 'any',
 } as const;
+
+const OUT_OF_SCOPE_MESSAGE =
+  'The pull request also changes files outside this documentation, so it cannot be approved or published in Docs Studio';
+const OUT_OF_SCOPE_DESCRIPTION = 'Changes files outside this documentation';
+
+/** Whether a changed file, and its previous path, belong to the docs. */
+function isFileInScope(
+  docs: DocsLocation,
+  file: GithubPullRequestFile,
+): boolean {
+  return (
+    isInDocsScope(docs, file.path) &&
+    (!file.previousPath || isInDocsScope(docs, file.previousPath))
+  );
+}
 
 const MAX_DETAIL_FILES = 50;
 const MAX_FILE_CONTENT_BYTES = 512 * 1024;
@@ -200,6 +218,7 @@ function stripTitlePrefix(title: string): string {
 }
 
 export class ProposalService {
+  private readonly auth: AuthService;
   private readonly store: ProposalStore;
   private readonly gateway: GithubGateway;
   private readonly resolver: DocsResolver;
@@ -211,6 +230,7 @@ export class ProposalService {
   private readonly locks = new Map<string, Promise<unknown>>();
 
   constructor(options: ProposalServiceOptions) {
+    this.auth = options.auth;
     this.store = options.store;
     this.gateway = options.gateway;
     this.resolver = options.resolver;
@@ -486,6 +506,7 @@ export class ProposalService {
         'The proposal changed after you opened it. Reload it and review the new version.',
       );
     }
+    await this.assertInScope(record);
     await this.gateway.assertCanWrite(this.repoRef(record));
 
     const now = new Date().toISOString();
@@ -723,7 +744,7 @@ export class ProposalService {
     if (!isActiveStatus(record.status)) {
       return;
     }
-    const desired = this.desiredStatus(record);
+    const desired = await this.effectiveStatus(record);
     let actual: CommitStatusState | undefined;
     try {
       actual = await this.gateway.getCommitStatusState(
@@ -1258,6 +1279,7 @@ export class ProposalService {
     record: ProposalRecord,
     identity: CallerIdentity,
   ): Promise<ProposalRecord> {
+    await this.assertInScope(record);
     const repo = this.repoRef(record);
     await this.gateway.mergePullRequest(repo, record.prNumber, {
       sha: record.headSha,
@@ -1303,6 +1325,64 @@ export class ProposalService {
     };
   }
 
+  /**
+   * The status to report, which is never success while the pull request
+   * changes files outside the documentation of the proposal's entity.
+   */
+  private async effectiveStatus(
+    record: ProposalRecord,
+    requestedBy?: string,
+  ): Promise<{ state: CommitStatusState; description: string }> {
+    const desired = this.desiredStatus(record, requestedBy);
+    if (desired.state !== 'success') {
+      return desired;
+    }
+    try {
+      if ((await this.filesOutsideScope(record)) > 0) {
+        return { state: 'failure', description: OUT_OF_SCOPE_DESCRIPTION };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Could not check the files of proposal ${record.id}: ${error}`,
+      );
+      return { ...desired, state: 'pending' };
+    }
+    return desired;
+  }
+
+  /**
+   * Number of files the pull request changes outside the documentation of
+   * the proposal's entity: the directory of its `mkdocs.yml` and its docs
+   * dir. Throws when it cannot be determined.
+   */
+  private async filesOutsideScope(
+    record: ProposalRecord,
+    docs?: DocsLocation,
+  ): Promise<number> {
+    const location = docs ?? (await this.docsOfRecord(record));
+    const files = await this.gateway.listPullRequestFiles(
+      this.repoRef(record),
+      record.prNumber,
+    );
+    return files.filter(file => !isFileInScope(location, file)).length;
+  }
+
+  private async assertInScope(record: ProposalRecord): Promise<void> {
+    if ((await this.filesOutsideScope(record)) > 0) {
+      throw new ConflictError(OUT_OF_SCOPE_MESSAGE);
+    }
+  }
+
+  private async docsOfRecord(record: ProposalRecord): Promise<DocsLocation> {
+    const entity = await this.catalog.getEntityByRef(record.entityRef, {
+      credentials: await this.auth.getOwnServiceCredentials(),
+    });
+    if (!entity) {
+      throw new NotFoundError(`Entity ${record.entityRef} was not found`);
+    }
+    return this.resolver.resolve(entity);
+  }
+
   /** Sets the commit status for the current head. Failures are logged only. */
   private async applyCommitStatus(
     record: ProposalRecord,
@@ -1317,7 +1397,7 @@ export class ProposalService {
       name = [...events].reverse().find(e => e.type === 'changes_requested')
         ?.actor?.displayName;
     }
-    const desired = this.desiredStatus(record, name);
+    const desired = await this.effectiveStatus(record, name);
     let checkState: CheckState =
       desired.state === 'error' ? 'failure' : desired.state;
     try {
@@ -1407,31 +1487,41 @@ export class ProposalService {
     } else if (reason !== undefined && reason !== 'not-open' && !canApprove) {
       reason = reason === 'author' ? 'author' : 'not-approver';
     }
-    const [events, files] = await Promise.all([
+    const [events, { files, hiddenFileCount }] = await Promise.all([
       this.store.listEvents(record.id),
       this.loadFiles(record, entity),
     ]);
+    const outOfScope = hiddenFileCount > 0;
+    if (outOfScope && active && reason !== 'author') {
+      reason = 'out-of-scope';
+    }
     return {
       ...this.toSummary(record),
       description: record.description,
       files,
+      hiddenFileCount: outOfScope ? hiddenFileCount : undefined,
       events,
       permissions: {
         canEdit:
           canCreate &&
           (record.status === 'open' || record.status === 'changes_requested'),
         canApprove: canApprove && reason === undefined,
-        canMerge: canApprove && record.status === 'approved',
+        canMerge: canApprove && record.status === 'approved' && !outOfScope,
         canDiscard: active && (author || canApprove),
         approveBlockedReason: reason,
       },
     };
   }
 
+  /**
+   * The changed files inside the documentation of the entity, with their
+   * content. Other files are only counted: their paths and content may
+   * belong to documentation the reader has no access to.
+   */
   private async loadFiles(
     record: ProposalRecord,
     entity: Entity,
-  ): Promise<ProposalFile[]> {
+  ): Promise<{ files: ProposalFile[]; hiddenFileCount: number }> {
     try {
       const docs = await this.resolver.resolve(entity);
       const repo = this.repoRef(record);
@@ -1439,8 +1529,9 @@ export class ProposalService {
         this.gateway.getPullRequest(repo, record.prNumber),
         this.gateway.listPullRequestFiles(repo, record.prNumber),
       ]);
-      return await Promise.all(
-        changed.slice(0, MAX_DETAIL_FILES).map(async file => {
+      const inScope = changed.filter(file => isFileInScope(docs, file));
+      const files = await Promise.all(
+        inScope.slice(0, MAX_DETAIL_FILES).map(async file => {
           const relative =
             toDocsRelativePath(docs, file.path) ??
             posix.relative(docs.docsDir || '.', file.path);
@@ -1475,11 +1566,12 @@ export class ProposalService {
           return result;
         }),
       );
+      return { files, hiddenFileCount: changed.length - inScope.length };
     } catch (error) {
       this.logger.warn(
         `Could not load the files of proposal ${record.id}: ${error}`,
       );
-      return [];
+      return { files: [], hiddenFileCount: 0 };
     }
   }
 

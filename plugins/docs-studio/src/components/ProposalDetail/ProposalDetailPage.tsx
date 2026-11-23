@@ -315,6 +315,11 @@ function ProposalDetailView(props: { id: string }) {
         ) : (
           proposal.files.map(file => <FileDiff key={file.path} file={file} />)
         )}
+        {!!proposal.hiddenFileCount && (
+          <Typography variant="body2" color="textSecondary">
+            {strings.detail.hiddenFiles(proposal.hiddenFileCount)}
+          </Typography>
+        )}
       </Paper>
 
       <Grid container spacing={2}>

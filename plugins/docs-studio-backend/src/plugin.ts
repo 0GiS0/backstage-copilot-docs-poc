@@ -130,6 +130,7 @@ export const docsStudioPlugin = createBackendPlugin({
         const store = new ProposalStore(knex);
         const resolver = new DocsResolver(github, settings.assetsDir);
         const service = new ProposalService({
+          auth,
           store,
           gateway: github,
           resolver,

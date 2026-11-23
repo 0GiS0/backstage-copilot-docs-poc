@@ -450,6 +450,15 @@ describe('docs studio backend', () => {
       expect(
         s.github.fileAt('main', 'engineering/docs/guides/new-page.md'),
       ).toBeUndefined();
+
+      const detail = (await s.call(BOB).get(`/proposals/${res.body.id}`)).body;
+      const nav = detail.files.find(
+        (f: any) => f.repoPath === 'engineering/mkdocs.yml',
+      );
+      expect(nav).toMatchObject({ path: '../mkdocs.yml', status: 'modified' });
+      expect(nav.headContent).toContain('New page: guides/new-page.md');
+      expect(detail.hiddenFileCount).toBeUndefined();
+      expect(detail.permissions.canApprove).toBe(true);
     });
 
     it('rejects pages that exist, bad paths and non-image assets', async () => {
@@ -745,6 +754,64 @@ describe('docs studio backend', () => {
       });
       expect(list[0].authors[0]).toMatchObject({ userEntityRef: BOB });
       expect(s.github.statuses.get(`${pr.headSha}|${STATUS}`)).toBe('pending');
+    });
+
+    it('does not import pull requests that change files outside one documentation', async () => {
+      const s = await setup();
+      s.github.openExternalPullRequest({
+        login: 'bob',
+        branch: 'bob/both',
+        files: {
+          'engineering/docs/index.md': '# Home fixed\n',
+          'security/docs/index.md': '# Security secret\n',
+        },
+      });
+      s.github.openExternalPullRequest({
+        login: 'bob',
+        branch: 'bob/code',
+        files: {
+          'engineering/docs/index.md': '# Home fixed\n',
+          'src/index.ts': 'x',
+        },
+      });
+      await s.runSync();
+      expect(
+        (await s.call(ADA).get('/proposals?scope=all')).body.items,
+      ).toHaveLength(0);
+    });
+
+    it('never shows or approves files pushed outside the documentation', async () => {
+      const s = await setup({ autoMergeOnApproval: false });
+      const { sha } = await pageSha(s);
+      const created = await s
+        .call(ADA)
+        .post('/proposals', edit('# Setup\n\nImproved\n', sha));
+      const head = s.github.push(
+        created.body.branch,
+        'security/docs/index.md',
+        '# Security secret\n',
+      );
+      await s.runSync();
+
+      const detail = (await s.call(BOB).get(`/proposals/${created.body.id}`))
+        .body;
+      expect(detail.headSha).toBe(head);
+      expect(detail.files.map((f: any) => f.repoPath)).toEqual([
+        'engineering/docs/guides/setup.md',
+      ]);
+      expect(JSON.stringify(detail)).not.toContain('Security secret');
+      expect(JSON.stringify(detail)).not.toContain('security/docs');
+      expect(detail.hiddenFileCount).toBe(1);
+      expect(detail.permissions).toMatchObject({
+        canApprove: false,
+        canMerge: false,
+        approveBlockedReason: 'out-of-scope',
+      });
+      const approve = await s
+        .call(BOB)
+        .post(`/proposals/${created.body.id}/approve`, {});
+      expect(approve.status).toBe(409);
+      expect(s.github.statuses.get(`${head}|${STATUS}`)).toBe('pending');
     });
 
     it('skips repositories without an app installation', async () => {

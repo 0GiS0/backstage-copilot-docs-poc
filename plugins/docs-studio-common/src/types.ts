@@ -120,6 +120,11 @@ export interface ProposalEvent {
 export interface ProposalDetail extends ProposalSummary {
   description?: string;
   files: ProposalFile[];
+  /**
+   * Number of files the pull request changes outside the documentation of
+   * this entity. They are never returned and block approval.
+   */
+  hiddenFileCount?: number;
   events: ProposalEvent[];
   permissions: {
     canEdit: boolean;
@@ -130,7 +135,8 @@ export interface ProposalDetail extends ProposalSummary {
       | 'author'
       | 'not-approver'
       | 'already-approved'
-      | 'not-open';
+      | 'not-open'
+      | 'out-of-scope';
   };
 }
 

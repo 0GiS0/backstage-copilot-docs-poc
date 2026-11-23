@@ -54,6 +54,30 @@ export function toDocsRelativePath(
     : undefined;
 }
 
+function isInsideDir(dir: string, repoPath: string): boolean {
+  return dir === '' || repoPath.startsWith(`${dir}/`);
+}
+
+/**
+ * How specific the documentation of an entity is for a repo path: the
+ * length of the deepest of its docs dir and the directory of its
+ * `mkdocs.yml` that contains the path, or `undefined` when neither does.
+ */
+export function docsScopeDepth(
+  docs: DocsLocation,
+  repoPath: string,
+): number | undefined {
+  const depths = [docs.docsDir, docs.mkdocsDir]
+    .filter(dir => isInsideDir(dir, repoPath))
+    .map(dir => dir.length);
+  return depths.length > 0 ? Math.max(...depths) : undefined;
+}
+
+/** Whether a repo path belongs to the documentation of an entity. */
+export function isInDocsScope(docs: DocsLocation, repoPath: string): boolean {
+  return docsScopeDepth(docs, repoPath) !== undefined;
+}
+
 interface CacheEntry {
   defaultBranch: string;
   mkdocsPath?: string;

@@ -85,6 +85,10 @@ export const strings = {
     approvedBy: (name: string) => `Approved by ${name}`,
     changesTitle: 'Changes',
     noChanges: 'This proposal does not contain file changes.',
+    hiddenFiles: (count: number) =>
+      `${count} more changed ${
+        count === 1 ? 'file is' : 'files are'
+      } outside this documentation and not shown.`,
     binaryFile: 'Binary file: the difference cannot be shown.',
     fileAdded: 'New',
     fileModified: 'Modified',
@@ -103,6 +107,8 @@ export const strings = {
       'already-approved':
         'You have already approved this version of the proposal.',
       'not-open': 'The proposal is no longer open.',
+      'out-of-scope':
+        'The pull request also changes files outside this documentation, so it cannot be approved in Docs Studio.',
     },
     approveDone: 'Approval recorded.',
     mergeFailedAfterApproval: (message: string) =>
