@@ -234,7 +234,7 @@ console.log(`Credentials written to ${outFile} (mode 0600).`);
 console.log(`
 Next steps:
   1. Install the App on the docs repo: ${app.html_url}/installations/new
-     (select the repository AgenticOrganization/docs-studio-playground only).
+     (select only your docs repository, the value of DOCS_STUDIO_REPOSITORY).
   2. Copy app-config.local.example.yaml to app-config.local.yaml (it already
      includes ./github-app-docs-studio-credentials.yaml).
   3. Apply the branch ruleset with the App id:

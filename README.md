@@ -1,178 +1,298 @@
 # backstage-copilot-docs-poc
 
-Prueba de concepto de un portal de desarrolladores con [Backstage](https://backstage.io) que:
+Proof of concept of a developer portal built on [Backstage](https://backstage.io) that:
 
-1. **Publica como TechDocs** la documentación de un equipo (handbooks en Markdown con MkDocs) alojada en un repositorio de GitHub: el _playground_ [`AgenticOrganization/docs-studio-playground`](https://github.com/AgenticOrganization/docs-studio-playground) (privado), con los handbooks `engineering-handbook` y `security-handbook`. Se registra en el catálogo con una _location_ de tipo URL.
-2. **Indexa esa documentación en Search** (colectores de catálogo y de TechDocs).
-3. **Añade un chat con el Microsoft Copilot SDK (antes GitHub Copilot SDK)** que responde preguntas sobre el handbook usando las _MCP actions_ de Backstage (`search.query`, acciones de catálogo y de TechDocs) y **cita la página de origen**.
-4. **Permite leer y editar esa documentación desde Backstage sin cuenta de GitHub** con **Docs Studio**: personas que solo tienen Microsoft Entra ID pueden leer TechDocs según sus permisos, editar páginas, proponer cambios y crear páginas nuevas. Una GitHub App convierte cada propuesta en una rama y una _pull request_, y la aprobación se hace en Backstage (ver [Docs Studio](#docs-studio)).
+1. **Publishes team documentation as TechDocs.** The documentation (Markdown handbooks built with MkDocs) lives in a GitHub repository that you own, the _docs repository_. It contains two sample handbooks, `engineering-handbook` and `security-handbook`, and is registered in the catalog with a URL location. You create this repository yourself; see [Create your docs repository](#4-create-your-docs-repository).
+2. **Indexes that documentation in Search** (catalog and TechDocs collators).
+3. **Adds a chat built with the Microsoft Copilot SDK (formerly GitHub Copilot SDK)** that answers questions about the handbooks using Backstage's MCP actions (`search.query`, catalog and TechDocs actions) and **cites the source page**.
+4. **Lets people read and edit that documentation from Backstage without a GitHub account**, with **Docs Studio**. People who only have a Microsoft Entra ID identity can read TechDocs (according to their permissions), edit pages, propose changes and create new pages. A GitHub App turns each proposal into a branch and a pull request, and approval happens in Backstage (see [Docs Studio](#docs-studio)).
 
 > [!NOTE]
-> El 28 de octubre de 2026 GitHub [anunció](https://github.blog/changelog/2026-10-28-github-copilot-sdk-is-becoming-microsoft-copilot-sdk/) que el **GitHub Copilot SDK** pasa a llamarse **Microsoft Copilot SDK**. El paquete de npm sigue siendo `@github/copilot-sdk`.
+> On 28 October 2026 GitHub [announced](https://github.blog/changelog/2026-10-28-github-copilot-sdk-is-becoming-microsoft-copilot-sdk/) that the **GitHub Copilot SDK** is being renamed **Microsoft Copilot SDK**. The npm package is still `@github/copilot-sdk`.
 
-## Arquitectura
+## Contents
+
+1. [Architecture](#architecture)
+2. [Docs Studio](#docs-studio)
+3. [Quick start](#quick-start)
+4. [Prerequisites and setup](#prerequisites-and-setup)
+   - [1. Tools](#1-tools)
+   - [2. Sign-in apps](#2-sign-in-apps)
+   - [3. GitHub token](#3-github-token)
+   - [4. Create your docs repository](#4-create-your-docs-repository)
+   - [5. Docs Studio GitHub App](#5-docs-studio-github-app)
+   - [6. Python and mkdocs-techdocs-core](#6-python-and-mkdocs-techdocs-core)
+   - [7. Copilot license](#7-copilot-license)
+5. [Configuration reference](#configuration-reference)
+6. [Users and personas in the catalog](#users-and-personas-in-the-catalog)
+7. [Run and validate](#run-and-validate)
+8. [Demo walkthrough](#demo-walkthrough)
+9. [Dependencies and Dependabot](#dependencies-and-dependabot)
+10. [Known limitations](#known-limitations)
+
+## Architecture
 
 ```mermaid
 flowchart LR
-  user([Usuario<br/>GitHub o Entra ID]) --> app[Frontend Backstage<br/>:3000]
+  user([User<br/>GitHub or Entra ID]) --> app[Backstage frontend<br/>:3000]
   app --> catalog
   app --> techdocs
   app --> search
   app --> chat
-  subgraph be[Backend Backstage :7007]
-    catalog[Catálogo]
+  subgraph be[Backstage backend :7007]
+    catalog[Catalog]
     techdocs[TechDocs<br/>runIn: local + mkdocs]
-    search[Search<br/>colectores catálogo + TechDocs]
+    search[Search<br/>catalog + TechDocs collators]
     mcp[MCP actions<br/>/api/mcp-actions/v1]
     chat[copilot-chat-backend]
-    ds[docs-studio-backend<br/>propuestas + sync]
+    ds[docs-studio-backend<br/>proposals + sync]
   end
-  docs[(GitHub<br/>AgenticOrganization/<br/>docs-studio-playground)] -- catalog-info.yaml + mkdocs.yml --> catalog
+  docs[(GitHub<br/>your docs repository)] -- catalog-info.yaml + mkdocs.yml --> catalog
   docs -- Markdown --> techdocs
   techdocs --> search
   chat -- Microsoft Copilot SDK --> copilot[(GitHub Copilot)]
   copilot -. tool calls .-> chat
-  chat -- token del usuario --> mcp
+  chat -- user token --> mcp
   mcp --> search
   mcp --> catalog
   mcp --> techdocs
-  app -- editar / proponer / aprobar --> ds
-  ds -- GitHub App: rama + PR + estado --> docs
-  ds -. sincronización cada minuto .-> docs
+  app -- edit / propose / approve --> ds
+  ds -- GitHub App: branch + PR + status --> docs
+  ds -. sync every minute .-> docs
 ```
 
-- `plugins/copilot-chat`: página de chat del frontend (nuevo _frontend system_), con selector de modelo y sugerencias.
-- `plugins/copilot-chat-backend`: endpoint SSE `/api/copilot-chat/chat` que crea una sesión del Microsoft Copilot SDK con el token de GitHub del usuario y le da como herramientas las _MCP actions_ de Backstage.
-- `plugins/docs-studio`, `plugins/docs-studio-backend` y `plugins/docs-studio-common`: Docs Studio (ver [Docs Studio](#docs-studio)).
-- `packages/backend/src/modules/techdocsRootIndex.ts`: genera una página de inicio de TechDocs cuando el `docs_dir` del repositorio de documentación no tiene `index.md`.
-- `packages/backend/src/modules/docsStudioPolicy.ts` y `docsStudioCatalogRules.ts`: política de permisos de ejemplo de la aplicación (lectura de entidades restringidas y aprobación de propuestas).
+Repository layout:
+
+- `plugins/copilot-chat`: chat page of the frontend (new frontend system), with a model selector and suggestions.
+- `plugins/copilot-chat-backend`: SSE endpoint `/api/copilot-chat/chat` that creates a Microsoft Copilot SDK session with the user's GitHub token and gives it Backstage's MCP actions as tools.
+- `plugins/docs-studio`, `plugins/docs-studio-backend` and `plugins/docs-studio-common`: Docs Studio (see [Docs Studio](#docs-studio)).
+- `packages/backend/src/modules/techdocsRootIndex.ts`: generates a TechDocs home page when the `docs_dir` of the docs repository has no `index.md`.
+- `packages/backend/src/modules/docsStudioPolicy.ts` and `docsStudioCatalogRules.ts`: the application's example permission policy (reading restricted entities and approving proposals).
+- `scripts/docs-studio/`: setup scripts for the docs repository, the GitHub App and the ruleset (see [its README](scripts/docs-studio/README.md)).
+- `examples/`: catalog data (`org.yaml`, `entities.yaml`, a software template) and the Docs Studio personas (`examples/docs-studio/org.example.yaml`).
 
 ## Docs Studio
 
-Docs Studio es un conjunto de plugins de Backstage que permite **leer, editar, proponer cambios y crear páginas** de TechDocs a personas que **no tienen cuenta ni licencia de GitHub** (inician sesión con Microsoft Entra ID). Una **GitHub App** convierte cada propuesta en una rama y una _pull request_; el autor del commit es el usuario de Backstage y el _committer_ es el bot de la App.
+Docs Studio is a set of Backstage plugins that lets people who **have no GitHub account or license** (they sign in with Microsoft Entra ID) **read, edit, propose changes to and create** TechDocs pages. A **GitHub App** turns each proposal into a branch and a pull request. The commit author is the Backstage user and the committer is the App's bot.
 
-La historia completa de la demo (de Confluence a TechDocs), con la reproducción manual paso a paso para cada persona, está en [`docs/docs-studio/guia-demo.md`](docs/docs-studio/guia-demo.md). El diagrama del flujo está en [`docs/docs-studio/flujo-demo.md`](docs/docs-studio/flujo-demo.md).
+The complete demo story (from Confluence to TechDocs), with a manual step-by-step reproduction for each persona, is in [`docs/docs-studio/demo-guide.md`](docs/docs-studio/demo-guide.md). The end-to-end flow diagram is in [`docs/docs-studio/demo-flow.md`](docs/docs-studio/demo-flow.md).
 
-| Paquete                                                                | Contenido                                                                            |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [`plugins/docs-studio`](plugins/docs-studio/README.md)                 | Frontend: addons de TechDocs, editor Markdown/WYSIWYG, lista y detalle de propuestas |
-| [`plugins/docs-studio-backend`](plugins/docs-studio-backend/README.md) | Backend: API REST, GitHub App, propuestas, aprobación, merge y sincronización        |
-| [`plugins/docs-studio-common`](plugins/docs-studio-common/README.md)   | Permisos, anotaciones y tipos compartidos                                            |
+| Package                                                                | Contents                                                                     |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [`plugins/docs-studio`](plugins/docs-studio/README.md)                 | Frontend: TechDocs addons, Markdown/WYSIWYG editor, proposal list and detail |
+| [`plugins/docs-studio-backend`](plugins/docs-studio-backend/README.md) | Backend: REST API, GitHub App, proposals, approval, merge and sync           |
+| [`plugins/docs-studio-common`](plugins/docs-studio-common/README.md)   | Shared permissions, annotations and types                                    |
 
-### Dos personas
+### Two personas
 
-|                               | Con licencia (GHEC/EMU)                                                                             | Sin licencia (solo Entra ID)                                              |
-| ----------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Cuenta de GitHub              | Sí, con licencia                                                                                    | No                                                                        |
-| Entidad `User` en el catálogo | Tiene la anotación `github.com/user-login`                                                          | No la tiene; se identifica por `graph.microsoft.com/user-id` o por correo |
-| Leer TechDocs                 | Sí, según sus permisos                                                                              | Sí, según sus permisos                                                    |
-| Editar, proponer y crear      | Desde Backstage, o abriendo la PR directamente en GitHub (la sincronización la importa a Backstage) | Solo desde Backstage                                                      |
-| Enlaces «Ver en GitHub»       | Sí                                                                                                  | No                                                                        |
-| Chat de Copilot               | Sí (inicio de sesión con GitHub)                                                                    | Deshabilitado (BYOK es un siguiente paso)                                 |
+|                              | Licensed (GHEC/EMU)                                                                          | Unlicensed (Entra ID only)                                                |
+| ---------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| GitHub account               | Yes, licensed                                                                                | No                                                                        |
+| `User` entity in the catalog | Has the `github.com/user-login` annotation                                                   | Does not have it; identified by `graph.microsoft.com/user-id` or by email |
+| Read TechDocs                | Yes, according to their permissions                                                          | Yes, according to their permissions                                       |
+| Edit, propose and create     | From Backstage, or by opening the PR directly on GitHub (the sync imports it into Backstage) | Only from Backstage                                                       |
+| "View on GitHub" links       | Yes                                                                                          | No                                                                        |
+| Copilot chat                 | Yes (GitHub sign-in)                                                                         | Disabled (bring-your-own-key is a possible next step)                     |
 
-### Cómo funciona una propuesta
+### How a proposal works
 
-1. La persona edita una página (o crea una nueva) desde la barra de TechDocs y envía la propuesta. Solo hay **una propuesta abierta por página**: un segundo editor se une a ella y queda como `Co-authored-by`. Los conflictos se detectan con el SHA del archivo y se devuelven como 409 con el contenido actual.
-2. El backend crea con la GitHub App una rama (prefijo `docs-studio`) y una PR contra la rama por defecto.
-3. Una persona con el permiso `docs-studio.proposal.approve` (propietario de la entidad o listada en la anotación `docs-studio/approvers`) la aprueba en Backstage. Rige la regla de los cuatro ojos: nadie aprueba su propia propuesta.
-4. La aprobación publica el _commit status_ `docs-studio/approval` sobre el SHA aprobado (se invalida si la rama avanza). Un **ruleset** del repositorio exige ese estado, publicado solo por la App y sin _bypass_.
-5. La PR se fusiona con _merge commit_ (no _squash_) anclado al SHA aprobado y TechDocs reconstruye la documentación.
+1. The person edits a page (or creates a new one) from the TechDocs toolbar and submits the proposal. There is only **one open proposal per page**: a second editor joins it and is added as `Co-authored-by`. Conflicts are detected with the file SHA and returned as a 409 with the current content.
+2. The backend uses the GitHub App to create a branch (prefix `docs-studio`) and a PR against the default branch.
+3. A person with the `docs-studio.proposal.approve` permission (the entity owner, or someone listed in the `docs-studio/approvers` annotation) approves it in Backstage. The four-eyes rule applies: nobody approves their own proposal.
+4. The approval publishes the `docs-studio/approval` commit status on the approved SHA (it is invalidated if the branch moves). A repository **ruleset** requires that status, which only the App can publish and which has no bypass.
+5. The PR is merged with a merge commit (not squash) pinned to the approved SHA, and TechDocs rebuilds the documentation.
 
-Las entidades con la anotación `docs-studio/visibility: restricted` solo las pueden leer (catálogo, TechDocs y búsqueda) y proponer sus propietarios. Esa regla vive en la política de permisos de la aplicación ([`docsStudioPolicy.ts`](packages/backend/src/modules/docsStudioPolicy.ts)); el plugin solo define los permisos.
+Entities annotated `docs-studio/visibility: restricted` can only be read (catalog, TechDocs and search) and proposed to by their owners. That rule lives in the application's permission policy ([`docsStudioPolicy.ts`](packages/backend/src/modules/docsStudioPolicy.ts)); the plugin only defines the permissions.
 
-La tarea programada `docs-studio-sync` se ejecuta cada minuto (en local no hay _webhooks_): refresca el estado de las propuestas e importa las PR abiertas directamente en GitHub.
+The scheduled task `docs-studio-sync` runs every minute (there are no webhooks locally): it refreshes the proposals' state and imports PRs that were opened directly on GitHub.
 
-### Puesta en marcha
+## Quick start
 
-Los pasos detallados, con los comandos de cada script, están en [`scripts/docs-studio/README.md`](scripts/docs-studio/README.md). Los scripts que cambian algo son _dry-run_ por defecto y necesitan `--apply`.
-
-1. (Opcional) Identificar usuarios de Entra sin licencia: `list-entra-unlicensed.mjs` (solo lectura).
-2. Generar el contenido del repositorio de documentación: `seed-playground.mjs`.
-3. Crear el repositorio privado `AgenticOrganization/docs-studio-playground` y subir el contenido.
-4. Crear la GitHub App (`create-github-app.mjs`) e instalarla en el repositorio del playground. En la demo está instalada en **todos** los repositorios de la organización, por decisión deliberada; Docs Studio solo actúa en los de `docsStudio.allowedRepositories`.
-5. Aplicar el ruleset que exige el estado `docs-studio/approval` (`apply-ruleset.mjs`).
-6. Configurar Backstage: `app-config.local.yaml`, `.env` y `examples/docs-studio/org.local.yaml`, y arrancar con `./scripts/start.sh`.
-
-### Ficheros con identidades locales
-
-Estos ficheros contienen identificadores y credenciales reales de tu entorno. **Están en `.gitignore`: no los subas al repositorio.**
-
-| Fichero                                   | Qué contiene                                                                                                                                  |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `examples/docs-studio/org.local.yaml`     | Usuarios y grupos de Docs Studio (identificadores de Entra, correos, usuarios de GitHub). Lo crea `scripts/start.sh` desde `org.example.yaml` |
-| `app-config.local.yaml`                   | Copia de `app-config.local.example.yaml`: repite el bloque `integrations.github` y añade la GitHub App                                        |
-| `.env`                                    | `GITHUB_TOKEN`, `AUTH_GITHUB_*` y `AUTH_MICROSOFT_*`                                                                                          |
-| `github-app-docs-studio-credentials.yaml` | Credenciales de la GitHub App (las genera `create-github-app.mjs`, modo 0600)                                                                 |
-
-También se ignora `.docs-studio-data`, la base de datos SQLite local donde se guardan las propuestas.
-
-## Versiones
-
-| Componente                                                              | Versión                          |
-| ----------------------------------------------------------------------- | -------------------------------- |
-| Backstage                                                               | 1.56.0 (nuevo _frontend system_) |
-| Node.js                                                                 | 24                               |
-| Yarn                                                                    | 4.13.0                           |
-| `@github/copilot-sdk` (Microsoft Copilot SDK, antes GitHub Copilot SDK) | 1.0.29                           |
-| Modelo por defecto del chat                                             | `claude-haiku-4.5`               |
-
-## Requisitos previos
-
-1. **GitHub OAuth App** para el inicio de sesión con GitHub (el chat necesita la identidad de GitHub del usuario):
-   - Homepage URL: `http://localhost:3000`
-   - Authorization callback URL: `http://localhost:7007/api/auth/github/handler/frame`
-2. **App registration de Microsoft Entra ID** (un solo _tenant_) para el inicio de sesión de las personas sin cuenta de GitHub:
-   - Redirect URI (tipo _Web_): `http://localhost:7007/api/auth/microsoft/handler/frame`
-   - El inicio de sesión es estricto: cada persona necesita una entidad `User` en el catálogo, que se enlaza por `graph.microsoft.com/user-id` o por correo (`spec.profile.email`).
-3. **Token de GitHub** con acceso de solo lectura (_Contents_) al repositorio de documentación (`AgenticOrganization/docs-studio-playground`).
-4. **GitHub App de Docs Studio**, instalada solo en ese repositorio, para crear ramas, commits, _pull requests_ y estados (la crea `scripts/docs-studio/create-github-app.mjs`; ver [Docs Studio](#docs-studio)).
-5. **Licencia de GitHub Copilot** para el usuario que quiera usar el chat.
-6. **Python + mkdocs-techdocs-core** para generar TechDocs en local (no se usa Docker):
-
-   ```bash
-   python3 -m venv ~/.venvs/techdocs
-   ~/.venvs/techdocs/bin/pip install mkdocs-techdocs-core
-   # Si PyPI está bloqueado en tu red, usa el proxy:
-   # ~/.venvs/techdocs/bin/pip install --index-url https://packagefeedproxy.microsoft.io/pypi/simple/ mkdocs-techdocs-core
-   ```
-
-7. Los usuarios deben existir en el catálogo: `examples/org.yaml` incluye `0gis0` (inicio de sesión con GitHub; si usas otra cuenta, añade un `User` con el nombre de tu usuario de GitHub en minúsculas) y `examples/docs-studio/org.local.yaml` contiene las personas de Docs Studio.
-
-## Configuración
-
-```bash
-cp .env.example .env
-cp app-config.local.example.yaml app-config.local.yaml
-```
-
-Rellena las variables (nunca subas `.env` ni `app-config.local.yaml` al repositorio):
-
-| Variable                                                    | Uso                                                                                    |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `GITHUB_TOKEN`                                              | Lectura del repositorio privado de documentación                                       |
-| `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET`       | OAuth App para el inicio de sesión con GitHub                                          |
-| `AUTH_MICROSOFT_CLIENT_ID` / `AUTH_MICROSOFT_CLIENT_SECRET` | App registration de Entra ID para el inicio de sesión con Microsoft                    |
-| `AUTH_MICROSOFT_TENANT_ID`                                  | _Tenant_ de Entra ID (déjalas vacías para arrancar sin inicio de sesión con Microsoft) |
-| `TECHDOCS_VENV` (opcional)                                  | Ruta del venv con mkdocs (por defecto `~/.venvs/techdocs`)                             |
-
-`app-config.local.yaml` añade la GitHub App de Docs Studio a `integrations.github` (los arrays de configuración se reemplazan, no se combinan, así que el bloque se repite completo). Las credenciales de la App van en `github-app-docs-studio-credentials.yaml`.
-
-Si tu red necesita un proxy de npm, instala las dependencias con él:
-
-```bash
-YARN_NPM_REGISTRY_SERVER=https://packagefeedproxy.microsoft.io/npm/ yarn install
-```
-
-## Arrancar
+For people who have already done the one-off setup below:
 
 ```bash
 yarn install
 ./scripts/start.sh
 ```
 
-`scripts/start.sh` carga `.env`, crea `examples/docs-studio/org.local.yaml` a partir de `org.example.yaml` si no existe (sustituye los valores `REPLACE_ME`), añade el venv de mkdocs al `PATH` y ejecuta `yarn start`. Abre <http://localhost:3000> e inicia sesión con **Microsoft** (Docs Studio), con **GitHub** (el chat lo necesita) o como **Guest** (catálogo, TechDocs y búsqueda).
+Open <http://localhost:3000>. The remaining sections explain how to get there from scratch.
 
-Validaciones:
+## Prerequisites and setup
+
+Do these in order. Everything you create stays in your own accounts; nothing here depends on the original author's organization.
+
+### 1. Tools
+
+| Tool    | Version                                                         |
+| ------- | --------------------------------------------------------------- |
+| Node.js | 22 or 24 (the `engines` field of `package.json`)                |
+| Yarn    | 4.13.0 (provided by `.yarn/releases`, via Corepack or `yarn` 4) |
+| Python  | 3.9 or newer, only for TechDocs generation                      |
+| `gh`    | GitHub CLI, only for the Docs Studio setup scripts              |
+| Git     |                                                                 |
+
+Versions of the main components: Backstage 1.56.0 (new frontend system), `@github/copilot-sdk` 1.0.29 (Microsoft Copilot SDK), default chat model `claude-haiku-4.5`.
+
+If your network requires a package proxy or a private registry, configure it for Yarn (`YARN_NPM_REGISTRY_SERVER` or `npmRegistryServer` in a user-level `.yarnrc.yml`) and for pip before running the install commands below.
+
+### 2. Sign-in apps
+
+1. **GitHub OAuth App** for GitHub sign-in (the chat needs the user's GitHub identity). Create it under GitHub > Settings > Developer settings > OAuth Apps:
+   - Homepage URL: `http://localhost:3000`
+   - Authorization callback URL: `http://localhost:7007/api/auth/github/handler/frame`
+   - Put the client ID and secret in `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET`.
+2. **Microsoft Entra ID app registration** (single tenant) for people without a GitHub account. Create it in the Entra admin center > App registrations:
+   - Redirect URI (platform _Web_): `http://localhost:7007/api/auth/microsoft/handler/frame`
+   - Create a client secret.
+   - Put the application (client) ID, the secret and the directory (tenant) ID in `AUTH_MICROSOFT_CLIENT_ID`, `AUTH_MICROSOFT_CLIENT_SECRET` and `AUTH_MICROSOFT_TENANT_ID`.
+   - Sign-in is strict: each person needs a `User` entity in the catalog, matched by the `graph.microsoft.com/user-id` annotation (Entra object ID) or by `spec.profile.email`. See [Users and personas](#users-and-personas-in-the-catalog).
+   - If you leave the three `AUTH_MICROSOFT_*` variables empty, Backstage still starts, without Microsoft sign-in (Guest and GitHub sign-in keep working).
+
+GitHub sign-in is configured for a PoC: it accepts any GitHub user even without a matching `User` entity (`dangerouslyAllowSignInWithoutUserInCatalog` in `app-config.yaml`). Remove that flag for anything beyond a PoC.
+
+### 3. GitHub token
+
+Create a fine-grained personal access token with **read-only "Contents"** access to your docs repository and put it in `GITHUB_TOKEN`. Backstage uses it to read the catalog files and the Markdown. Writes (Docs Studio proposals) use the GitHub App instead.
+
+### 4. Create your docs repository
+
+The docs repository holds the TechDocs sources and is the only repository Docs Studio is allowed to write to. The scripts in `scripts/docs-studio/` generate a ready-to-use one from a public sample corpus ([`0GiS0/confluence-to-github-poc`](https://github.com/0GiS0/confluence-to-github-poc)): an engineering handbook and a restricted security handbook, each with its own `catalog-info.yaml` and `mkdocs.yml`, plus a root `catalog-info.yaml` that registers both.
+
+```bash
+# 1. Generate the content locally (dry, changes nothing on GitHub)
+node scripts/docs-studio/seed-playground.mjs --out ./docs-repo-seed
+
+# 2. Create an empty repository on GitHub, for example <owner>/<docs-repo>
+gh repo create <owner>/<docs-repo> --private
+
+# 3. Push the generated content (dry-run unless --apply is given)
+node scripts/docs-studio/seed-playground.mjs --out ./docs-repo-seed --force \
+  --push <owner>/<docs-repo> --apply
+```
+
+You can use your own existing documentation instead, as long as the repository has a root `catalog-info.yaml` (a `Location` pointing to one or more `catalog-info.yaml` files with `backstage.io/techdocs-ref: dir:.` and a `mkdocs.yml`).
+
+**Point Backstage at it** by setting a single variable in `.env`, with no need to edit any tracked file:
+
+```bash
+DOCS_STUDIO_REPOSITORY=<owner>/<docs-repo>
+```
+
+`app-config.yaml` reads this variable in two places: the catalog location (`https://github.com/<owner>/<docs-repo>/blob/main/catalog-info.yaml`) and `docsStudio.allowedRepositories`. If the variable is not set, it falls back to the original demo repository `AgenticOrganization/docs-studio-playground`, which is private and unreachable for you, so always set it. `scripts/start.sh` prints a notice when it is missing.
+
+Optionally apply the branch ruleset that makes the `docs-studio/approval` status mandatory (after you have the GitHub App id, next step):
+
+```bash
+node scripts/docs-studio/apply-ruleset.mjs --repo <owner>/<docs-repo> --app-id <id>          # dry-run
+node scripts/docs-studio/apply-ruleset.mjs --repo <owner>/<docs-repo> --app-id <id> --apply
+```
+
+The sample handbooks are owned by the groups `handbook-approvers` and `security-team`, which must exist in the catalog (they are included in `examples/docs-studio/org.example.yaml`).
+
+### 5. Docs Studio GitHub App
+
+The App creates branches, commits, pull requests and commit statuses (permissions `contents:write`, `pull_requests:write`, `statuses:write`, `metadata:read`; no webhooks).
+
+```bash
+node scripts/docs-studio/create-github-app.mjs --org <your-org>          # dry-run: prints the manifest
+node scripts/docs-studio/create-github-app.mjs --org <your-org> --apply  # opens GitHub to confirm
+```
+
+The script writes `github-app-docs-studio-credentials.yaml` (gitignored, mode 0600). Then:
+
+1. Install the App **only on your docs repository** (the script prints the URL).
+2. Copy the local config template: `cp app-config.local.example.yaml app-config.local.yaml`. It includes the credentials file.
+
+Even if the App is installed on more repositories, Docs Studio only acts on those listed in `docsStudio.allowedRepositories` (which is `DOCS_STUDIO_REPOSITORY`).
+
+### 6. Python and mkdocs-techdocs-core
+
+TechDocs is generated locally, without Docker (`techdocs.generator.runIn: local`):
+
+```bash
+python3 -m venv ~/.venvs/techdocs
+~/.venvs/techdocs/bin/pip install mkdocs-techdocs-core
+```
+
+If your network requires a package proxy or a private index, pass it to `pip` (`--index-url`, or `PIP_INDEX_URL`). `scripts/start.sh` adds the venv to `PATH`; use `TECHDOCS_VENV` if you create it somewhere else.
+
+### 7. Copilot license
+
+The chat needs a GitHub account with a **GitHub Copilot license**. The rest of the PoC does not.
+
+## Configuration reference
+
+```bash
+cp .env.example .env
+cp app-config.local.example.yaml app-config.local.yaml
+```
+
+Never commit `.env` or `app-config.local.yaml`.
+
+### Environment variables (`.env`)
+
+| Variable                                                    | Purpose                                                                                       |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `DOCS_STUDIO_REPOSITORY`                                    | `owner/name` of your docs repository (catalog location and Docs Studio allow-list)            |
+| `GITHUB_TOKEN`                                              | Read access to the docs repository                                                            |
+| `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET`       | OAuth App for GitHub sign-in                                                                  |
+| `AUTH_MICROSOFT_CLIENT_ID` / `AUTH_MICROSOFT_CLIENT_SECRET` | Entra ID app registration for Microsoft sign-in                                               |
+| `AUTH_MICROSOFT_TENANT_ID`                                  | Entra ID tenant (leave the three `AUTH_MICROSOFT_*` empty to start without Microsoft sign-in) |
+| `TECHDOCS_VENV` (optional)                                  | Path of the venv with mkdocs (default `~/.venvs/techdocs`)                                    |
+
+### Files
+
+| File                                      | Tracked | Purpose                                                                                                                                                                         |
+| ----------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app-config.yaml`                         | yes     | Base configuration. The `docsStudio` block (approvals, auto-merge, branch prefix, sync frequency), `copilotChat` (default model, docs entity) and `catalog.locations` live here |
+| `app-config.production.yaml`              | yes     | Production overrides (PostgreSQL)                                                                                                                                               |
+| `app-config.local.example.yaml`           | yes     | Template for `app-config.local.yaml`                                                                                                                                            |
+| `app-config.local.yaml`                   | no      | Your copy. Repeats the `integrations.github` block (arrays are replaced, not merged) and adds the GitHub App                                                                    |
+| `github-app-docs-studio-credentials.yaml` | no      | GitHub App credentials, generated by `create-github-app.mjs` (mode 0600)                                                                                                        |
+| `.env`                                    | no      | The variables above                                                                                                                                                             |
+| `examples/docs-studio/org.local.yaml`     | no      | Your personas; created by `scripts/start.sh` from `org.example.yaml`                                                                                                            |
+| `.docs-studio-data/`                      | no      | Local SQLite database with the proposals                                                                                                                                        |
+
+`copilotChat.docsEntity` (default `default/component/engineering-handbook`) is the entity whose TechDocs the assistant cites. Change it if your docs repository uses other entity names.
+
+## Users and personas in the catalog
+
+Docs Studio needs `User` and `Group` entities. Two files provide them:
+
+- `examples/org.yaml`: the `guest` user and a sample user named `0gis0` (the repository owner's GitHub login). To sign in with GitHub as someone else, add a `User` whose `metadata.name` is your lowercase GitHub login, for example:
+
+  ```yaml
+  apiVersion: backstage.io/v1alpha1
+  kind: User
+  metadata:
+    name: your-github-login
+  spec:
+    profile:
+      displayName: Your Name
+    memberOf: [guests]
+  ```
+
+- `examples/docs-studio/org.local.yaml` (gitignored): the Docs Studio personas. `scripts/start.sh` creates it from the committed `org.example.yaml` the first time. Replace every `REPLACE_ME` value:
+
+  | Field                         | What to set                                                                                               |
+  | ----------------------------- | --------------------------------------------------------------------------------------------------------- |
+  | `metadata.name`               | The GitHub login for licensed users (so GitHub sign-in maps to the same entity); any valid name otherwise |
+  | `graph.microsoft.com/user-id` | Entra object ID (`az ad user show --id <upn> --query id -o tsv`). Matched first by Microsoft sign-in      |
+  | `spec.profile.email`          | The Entra `mail`, or the userPrincipalName when `mail` is empty. Matched second                           |
+  | `github.com/user-login`       | **Only for licensed users.** Its presence is what Docs Studio treats as "has a GitHub Copilot license"    |
+
+  The file defines four personas (two licensed, two unlicensed) and three groups: `engineering`, `handbook-approvers` (owner and approvers of the Engineering Handbook) and `security-team` (the only group that can read the restricted Security Handbook). To add your own people, copy a `User` block and set `memberOf` to the group that matches their role. `scripts/docs-studio/list-entra-unlicensed.mjs` (read-only, uses `az`) helps find Entra users that have no GitHub license.
+
+## Run and validate
+
+```bash
+yarn install
+./scripts/start.sh
+```
+
+`scripts/start.sh` loads `.env`, creates `examples/docs-studio/org.local.yaml` if it is missing, adds the mkdocs venv to `PATH` and runs `yarn start`. Open <http://localhost:3000> and sign in with **Microsoft** (Docs Studio), **GitHub** (the chat needs it) or as **Guest** (catalog, TechDocs and search). Backstage uses ports 3000 (frontend) and 7007 (backend).
+
+Checks:
 
 ```bash
 yarn tsc
@@ -181,67 +301,70 @@ CI=true yarn test
 yarn build:backend
 ```
 
-## Guion de la demo
+To verify that the docs repository is picked up, open the catalog: `engineering-handbook` and `security-handbook` should appear (the catalog refreshes in about a minute), and the _Docs_ tab of `engineering-handbook` should render.
 
-Entidades del repositorio [`AgenticOrganization/docs-studio-playground`](https://github.com/AgenticOrganization/docs-studio-playground): `engineering-handbook` (propietario y aprobadores: grupo `handbook-approvers`) y `security-handbook` (restringido: solo lo ve el equipo de seguridad). Personas de ejemplo (en `examples/docs-studio/org.local.yaml` se sustituyen por las cuentas reales de tu entorno):
+## Demo walkthrough
 
-| Persona       | Perfil                                              | Rol en la demo                                   |
-| ------------- | --------------------------------------------------- | ------------------------------------------------ |
-| Jon Snow      | Con licencia de GitHub, grupo `engineering`         | Propone un cambio desde GitHub o desde Backstage |
-| Samwell Tarly | Con licencia de GitHub, grupo `handbook-approvers`  | Aprueba                                          |
-| Arya          | Sin licencia (solo Entra ID), grupo `engineering`   | Lee, edita y propone solo desde Backstage        |
-| Sansa         | Sin licencia (solo Entra ID), grupo `security-team` | Ve la sección restringida                        |
+The sample entities are `engineering-handbook` (owner and approvers: group `handbook-approvers`) and `security-handbook` (restricted: only the security team sees it). The personas below are the ones in `examples/docs-studio/org.example.yaml`; replace them with real accounts of your environment.
 
-1. **Catálogo**: abre `engineering-handbook`. Viene del repositorio de documentación a través de su `catalog-info.yaml`.
-2. **Leer**: pestaña _Docs_ → _Platform Operations_ → _Deployment Guide_ → _Rollback Procedure_. La primera vez la generación tarda unos segundos. Inicia sesión con Microsoft como **Arya** (sin cuenta de GitHub): puede leer, pero no ve enlaces «Ver en GitHub» ni puede usar el chat.
-3. **Editar y proponer**: como Arya, pulsa el botón de editar de la barra de TechDocs, cambia un paso del procedimiento y envía la propuesta. En Docs Studio (lista de propuestas) aparece como _Abierta_; en GitHub, la GitHub App ha creado la rama y la PR con Arya como autora del commit y el bot como _committer_. Si **Jon** (con licencia) edita la misma página, se une a la propuesta como `Co-authored-by`.
-4. **Aprobar**: Arya no puede aprobar su propia propuesta (cuatro ojos). Entra como **Samwell** (propietario de `engineering-handbook`), abre la propuesta en _Pendientes de mi aprobación_, revisa los cambios y pulsa _Aprobar_. Se publica el estado `docs-studio/approval` y, como `autoMergeOnApproval` está activo, la PR se fusiona con un _merge commit_.
-5. **Ver en TechDocs**: tras el merge TechDocs reconstruye la página y el cambio aparece en _Rollback Procedure_ (la sincronización puede tardar hasta un minuto). Busca `rollback` en **Search** para ver el resultado indexado.
-6. **Entidad restringida**: abre `security-handbook`. Como Arya no aparece (ni en el catálogo, ni en TechDocs, ni en Search); como **Sansa** (`security-team`) sí.
-7. **Copilot Chat** (con **Jon**, que inicia sesión con Microsoft y la primera vez conecta su cuenta de GitHub desde el chat): pregunta _What is the rollback procedure?_ o _What are the severity levels?_. El agente llama a `search.query` sobre TechDocs y responde con un apartado **Sources** que enlaza a la página de TechDocs. Con Arya el chat aparece deshabilitado.
+| Persona       | Profile                                           | Role in the demo                                |
+| ------------- | ------------------------------------------------- | ----------------------------------------------- |
+| Jon Snow      | GitHub license, group `engineering`               | Proposes a change from GitHub or from Backstage |
+| Samwell Tarly | GitHub license, group `handbook-approvers`        | Approves                                        |
+| Arya          | Unlicensed (Entra ID only), group `engineering`   | Reads, edits and proposes only from Backstage   |
+| Sansa         | Unlicensed (Entra ID only), group `security-team` | Sees the restricted section                     |
 
-## Dependencias y Dependabot
+1. **Catalog**: open `engineering-handbook`. It comes from the docs repository through its `catalog-info.yaml`.
+2. **Read**: _Docs_ tab > _Platform Operations_ > _Deployment Guide_ > _Rollback Procedure_. The first time, generation takes a few seconds. Sign in with Microsoft as **Arya** (no GitHub account): she can read, but sees no "View on GitHub" links and cannot use the chat.
+3. **Edit and propose**: as Arya, click the edit button in the TechDocs toolbar, change a step of the procedure and submit. In Docs Studio (proposal list) it shows as _Open_; on GitHub, the GitHub App has created the branch and PR with Arya as commit author and the bot as committer. If **Jon** (licensed) edits the same page, he joins the proposal as `Co-authored-by`.
+4. **Approve**: Arya cannot approve her own proposal (four eyes). Sign in as **Samwell** (owner of `engineering-handbook`), open the proposal under _Pending my approval_, review the changes and click _Approve_. The `docs-studio/approval` status is published and, because `autoMergeOnApproval` is on, the PR is merged with a merge commit.
+5. **See it in TechDocs**: after the merge TechDocs rebuilds the page and the change appears in _Rollback Procedure_ (the sync can take up to a minute). Search for `rollback` in **Search** to see the indexed result.
+6. **Restricted entity**: open `security-handbook`. As Arya it does not appear (not in the catalog, TechDocs or Search); as **Sansa** (`security-team`) it does.
+7. **Copilot chat** (with **Jon**, who signs in with Microsoft and connects his GitHub account from the chat the first time): ask _What is the rollback procedure?_ or _What are the severity levels?_. The agent calls `search.query` over TechDocs and answers with a **Sources** section linking to the TechDocs page. For Arya the chat is disabled.
 
-Dependabot está configurado en `.github/dependabot.yml` y revisa las dependencias cada lunes a las 06:00 (hora de Madrid):
+## Dependencies and Dependabot
 
-- `npm` en la raíz: cubre todos los workspaces de Yarn 4 (`packages/*` y `plugins/*`) a través de `yarn.lock`.
-- `docker`: la imagen base de `packages/backend/Dockerfile`.
+Dependabot is configured in `.github/dependabot.yml` and checks dependencies every Monday at 06:00 (Madrid time):
 
-Las actualizaciones se agrupan para reducir el número de PRs:
+- `npm` at the root: covers all Yarn 4 workspaces (`packages/*` and `plugins/*`) through `yarn.lock`.
+- `docker`: the base image of `packages/backend/Dockerfile`.
 
-| Grupo             | Qué incluye                                                              |
-| ----------------- | ------------------------------------------------------------------------ |
-| `backstage`       | Todos los paquetes `@backstage/*` en una única PR                        |
-| `npm-minor-patch` | Versiones minor y patch del resto de dependencias                        |
-| `security`        | Actualizaciones de seguridad, agrupadas                                  |
-| Sin grupo         | Las major de paquetes que no son de Backstage llegan en PRs individuales |
+Updates are grouped to reduce the number of PRs:
 
-Las PRs llevan la etiqueta `📦 dependencies` y los commits usan `chore(deps): …` o `chore(deps-dev): …`.
+| Group             | What it includes                                                  |
+| ----------------- | ----------------------------------------------------------------- |
+| `backstage`       | All `@backstage/*` packages in a single PR                        |
+| `npm-minor-patch` | Minor and patch versions of the other dependencies                |
+| `security`        | Security updates, grouped                                         |
+| No group          | Major versions of non-Backstage packages arrive as individual PRs |
 
-Hay un `cooldown` de 3 días para las actualizaciones de versión, alineado con `npmMinimalAgeGate: 3d` de `.yarnrc.yml` (Dependabot no lee esa opción; ver [dependabot-core#14134](https://github.com/dependabot/dependabot-core/issues/14134)). Las actualizaciones de seguridad no esperan.
+PRs carry the `📦 dependencies` label and commits use `chore(deps): …` or `chore(deps-dev): …`.
 
-Para subir Backstage completo no basta con la PR agrupada, porque solo cambia versiones de paquetes. Una subida completa (incluye `backstage.json` y cambios de plantilla) se hace con:
+There is a 3-day `cooldown` for version updates, aligned with `npmMinimalAgeGate: 3d` in `.yarnrc.yml` (Dependabot does not read that option; see [dependabot-core#14134](https://github.com/dependabot/dependabot-core/issues/14134)). Security updates do not wait.
+
+Upgrading Backstage as a whole needs more than the grouped PR, which only changes package versions. A full upgrade (including `backstage.json` and template changes) is done with:
 
 ```bash
 yarn backstage-cli versions:bump
 ```
 
-Muchas alertas de seguridad no generan PR porque Backstage fija dependencias transitivas vulnerables (por ejemplo, `@backstage/cli` → `undici`) y Dependabot marca `security_update_not_possible`. Se corrigen al subir la versión de Backstage.
+Many security alerts do not produce a PR because Backstage pins vulnerable transitive dependencies (for example `@backstage/cli` → `undici`) and Dependabot reports `security_update_not_possible`. They are fixed when Backstage is upgraded.
 
-La imagen `node:24-trixie-slim` va fijada por digest. Dependabot abre PRs cuando cambia el digest (parches de Node y del sistema). Las versiones major de Node se ignoran porque deben cambiar a la vez que `engines` en `package.json` y que la versión de Node del host.
+The `node:24-trixie-slim` image is pinned by digest. Dependabot opens PRs when the digest changes (Node and OS patches). Node major versions are ignored because they must change together with `engines` in `package.json` and the host's Node version.
 
-Para descartar una actualización concreta, comenta en la PR `@dependabot ignore this major version` (o `@dependabot ignore this minor version` / `@dependabot ignore this dependency`).
+To dismiss a specific update, comment `@dependabot ignore this major version` (or `@dependabot ignore this minor version` / `@dependabot ignore this dependency`) on the PR.
 
-## Limitaciones conocidas
+## Known limitations
 
-- **Inicio de sesión con redirección**: se usa `enableExperimentalRedirectFlow` en lugar del popup de OAuth.
-- **Búsqueda**: el índice está en memoria y tarda alrededor de un minuto en llenarse tras arrancar.
-- **Página de inicio generada**: si el `docs_dir` de un repositorio de documentación no tiene `index.md` en la raíz, el backend genera una página de inicio con enlaces a las secciones (`techdocsRootIndex.ts`). No modifica el repositorio de origen.
-- **TechDocs en local, sin Docker** (`techdocs.generator.runIn: local`).
-- **Safari/WebKit en `http://localhost`**: Backstage emite la cookie `backstage-auth` como `Secure; SameSite=None` cuando el host es `localhost`. WebKit la descarta en HTTP, así que los recursos estáticos de TechDocs devuelven 401 y la página se queda cargando. Usa Chrome o Edge en local, o HTTPS.
-- **MCP actions del chat**: el backend del chat llama a las MCP actions con un token emitido en nombre del usuario que ha iniciado sesión, así que la política de permisos se aplica también a lo que el asistente puede leer. `backend.actions.filter` solo expone acciones `readOnly`.
-- **Chat**: requiere una cuenta de GitHub conectada (inicio de sesión con GitHub, o conectarla desde el chat tras entrar con Microsoft; no funciona como Guest) y una licencia de Copilot. Para las personas sin licencia (solo Entra ID) está **deshabilitado**; usar una clave propia (BYOK) es un siguiente paso.
-- **Sección restringida en GitHub**: la restricción solo se aplica en Backstage. En GitHub, el contenido de `security-handbook` lo puede leer cualquier miembro de la organización (el permiso base de la organización es _read_).
-- **Estados con retraso**: no hay _webhooks_ en local, así que los cambios hechos en GitHub (PR fusionadas o cerradas, ramas que avanzan, estados) tardan hasta 1 minuto en reflejarse en Backstage (tarea `docs-studio-sync`).
-- **Commits sin firmar**: los commits que crea la GitHub App con la persona de Backstage como autora salen **sin firmar** en GitHub (`unsigned`). Los commits hechos en el editor web de GitHub sí salen _Verified_. Si la organización exige commits firmados, este camino necesita otro diseño.
-- **Alertas de GFM**: las alertas de GitHub (`> [!NOTE]`, etc.) pueden verse como citas (_blockquotes_) en TechDocs, porque MkDocs no las interpreta.
+- **Redirect sign-in**: `enableExperimentalRedirectFlow` is used instead of the OAuth popup.
+- **Search**: the index is in memory and takes about a minute to fill after startup.
+- **Generated home page**: if the `docs_dir` of a docs repository has no `index.md` at its root, the backend generates a home page with links to the sections (`techdocsRootIndex.ts`). It does not modify the source repository.
+- **TechDocs runs locally, without Docker** (`techdocs.generator.runIn: local`), so Python and `mkdocs-techdocs-core` are required on the host.
+- **Safari/WebKit on `http://localhost`**: Backstage sets the `backstage-auth` cookie as `Secure; SameSite=None` when the host is `localhost`. WebKit drops it over HTTP, so TechDocs static assets return 401 and the page keeps loading. Use Chrome or Edge locally, or HTTPS.
+- **Chat MCP actions**: the chat backend calls MCP actions with a token issued on behalf of the signed-in user, so the permission policy also applies to what the assistant can read. `backend.actions.filter` only exposes `readOnly` actions.
+- **Chat**: requires a connected GitHub account (GitHub sign-in, or connecting one from the chat after signing in with Microsoft; it does not work as Guest) and a Copilot license. It is **disabled** for unlicensed people (Entra ID only); bring-your-own-key is a possible next step.
+- **Restricted section on GitHub**: the restriction is only enforced in Backstage. On GitHub, anyone who can read the docs repository can read `security-handbook` (for example every organization member when the organization's base permission is _read_). Put restricted content in a separate repository for real isolation.
+- **Delayed state**: there are no webhooks locally, so changes made on GitHub (merged or closed PRs, branches that move, statuses) take up to 1 minute to show in Backstage (`docs-studio-sync` task).
+- **Unsigned commits**: commits created by the GitHub App with the Backstage person as author are **unsigned** on GitHub. Commits made in GitHub's web editor are _Verified_. If your organization requires signed commits, this path needs a different design.
+- **GFM alerts**: GitHub alerts (`> [!NOTE]`, etc.) may render as blockquotes in TechDocs, because MkDocs does not interpret them.
+- **Local-only setup**: the OAuth callback URLs and `baseUrl` values are `localhost`. Deploying elsewhere means changing them in `app-config.yaml`, the OAuth App and the Entra registration, and using `app-config.production.yaml`.
