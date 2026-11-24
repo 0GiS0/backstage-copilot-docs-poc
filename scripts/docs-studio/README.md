@@ -34,7 +34,7 @@ secrets. All of them accept `--help`.
    organization repositories need GitHub Team or Enterprise Cloud for rulesets. Without a
    ruleset, PRs opened directly on GitHub are not blocked.
 6. **Configure Backstage**: create `app-config.local.yaml` from
-   `app-config.local.example.yaml` only if it does not exist yet, fill in `.env` (`GITHUB_TOKEN`, `AUTH_MICROSOFT_*`, and
+   `app-config.local.example.yaml` only if it does not exist yet (otherwise add the `apps` `$include` of the credentials file to its `github.com` integration), fill in `.env` (`GITHUB_TOKEN`, `AUTH_MICROSOFT_*`, and
    `DOCS_STUDIO_REPOSITORY=<org>/<docs-repo>`) and edit
    `examples/docs-studio/org.local.yaml`; start with `scripts/start.sh`.
 
