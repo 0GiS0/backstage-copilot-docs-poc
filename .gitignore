@@ -57,3 +57,7 @@ e2e-test-report/
 
 # Generated TechDocs (local publisher)
 .techdocs-storage
+
+# Docs Studio local data (proposals database) and personas
+.docs-studio-data
+examples/docs-studio/org.local.yaml

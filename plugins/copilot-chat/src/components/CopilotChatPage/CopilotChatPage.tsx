@@ -8,6 +8,7 @@ import { ProgressPanel } from './ProgressPanel';
 import { TypingIndicator } from './TypingIndicator';
 import { ModelSelector } from './ModelSelector';
 import { useCopilotChat } from './useCopilotChat';
+import { LicenseGate } from './LicenseGate';
 
 const useStyles = makeStyles(theme => ({
   content: {
@@ -47,7 +48,7 @@ const useStyles = makeStyles(theme => ({
   },
 }));
 
-export const CopilotChatPage = () => {
+const CopilotChatContent = () => {
   const classes = useStyles();
   const {
     messages,
@@ -113,3 +114,9 @@ export const CopilotChatPage = () => {
     </Page>
   );
 };
+
+export const CopilotChatPage = () => (
+  <LicenseGate>
+    <CopilotChatContent />
+  </LicenseGate>
+);

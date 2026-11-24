@@ -2,3 +2,6 @@ dist
 dist-types
 coverage
 .vscode
+
+# Docs Studio markdown fixtures must keep their exact bytes
+plugins/docs-studio/src/markdown/__fixtures__

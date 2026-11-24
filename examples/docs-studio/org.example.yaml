@@ -1,0 +1,110 @@
+# Docs Studio personas: 2 licensed users (GitHub EMU + Copilot) and 2
+# unlicensed users (Entra ID only), plus the 3 groups that drive permissions.
+#
+# This file is committed with placeholders. `scripts/start.sh` copies it to
+# `org.local.yaml` (gitignored) the first time; edit THAT file and replace every
+# REPLACE_ME value. Never put real tenant identities in this committed file.
+#
+# What each user needs:
+#   metadata.name                       The GitHub EMU login for licensed users
+#                                       (underscores are valid), so the GitHub
+#                                       sign-in resolver maps to the same entity.
+#   graph.microsoft.com/user-id         The Entra object ID of the user
+#                                       (Entra admin center > Users > Object ID,
+#                                       or `az ad user show --id <upn> --query id -o tsv`).
+#                                       Matched first by the Microsoft sign-in.
+#   spec.profile.email                  The `mail` of the Entra user or, when
+#                                       `mail` is empty, its userPrincipalName
+#                                       (that is what the Microsoft sign-in
+#                                       reports as the email). Matched second.
+#   github.com/user-login               ONLY for licensed users. Its presence is
+#                                       what Docs Studio treats as "has a GitHub
+#                                       Copilot license". Never add it to the
+#                                       unlicensed users.
+---
+# Licensed developer (member of the `engineering` group)
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: REPLACE_ME_EMU_LOGIN_JON # REPLACE_ME: GitHub EMU login of this user
+  annotations:
+    graph.microsoft.com/user-id: REPLACE_ME_ENTRA_OBJECT_ID
+    github.com/user-login: REPLACE_ME_EMU_LOGIN_JON # REPLACE_ME: same as metadata.name
+spec:
+  profile:
+    displayName: Jon Snow
+    # REPLACE_ME: Entra `mail`, or the userPrincipalName when `mail` is empty
+    email: REPLACE_ME_EMAIL_OR_UPN
+  memberOf: [engineering]
+---
+# Licensed approver (member of `handbook-approvers`, which owns the Engineering Handbook)
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: REPLACE_ME_EMU_LOGIN_SAMWELL # REPLACE_ME: GitHub EMU login of this user
+  annotations:
+    graph.microsoft.com/user-id: REPLACE_ME_ENTRA_OBJECT_ID
+    github.com/user-login: REPLACE_ME_EMU_LOGIN_SAMWELL # REPLACE_ME: same as metadata.name
+spec:
+  profile:
+    displayName: Samwell Tarly
+    # REPLACE_ME: Entra `mail`, or the userPrincipalName when `mail` is empty
+    email: REPLACE_ME_EMAIL_OR_UPN
+  memberOf: [handbook-approvers]
+---
+# Unlicensed user A: exists only in Entra (NOT assigned to the GitHub EMU
+# enterprise app). No github.com/user-login annotation.
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  # REPLACE_ME: any valid entity name, for example the local part of the UPN
+  name: REPLACE_ME_UNLICENSED_A
+  annotations:
+    graph.microsoft.com/user-id: REPLACE_ME_ENTRA_OBJECT_ID
+spec:
+  profile:
+    displayName: REPLACE_ME unlicensed user A
+    # REPLACE_ME: Entra `mail`, or the userPrincipalName when `mail` is empty
+    email: REPLACE_ME_EMAIL_OR_UPN
+  memberOf: [engineering]
+---
+# Unlicensed user B: Entra only, member of the `security-team` group that owns
+# the restricted Security Handbook. No github.com/user-login annotation.
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: REPLACE_ME_UNLICENSED_B # REPLACE_ME: any valid entity name
+  annotations:
+    graph.microsoft.com/user-id: REPLACE_ME_ENTRA_OBJECT_ID
+spec:
+  profile:
+    displayName: REPLACE_ME unlicensed user B
+    # REPLACE_ME: Entra `mail`, or the userPrincipalName when `mail` is empty
+    email: REPLACE_ME_EMAIL_OR_UPN
+  memberOf: [security-team]
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: engineering
+spec:
+  type: team
+  children: []
+---
+# Owns the Engineering Handbook: its members can approve proposals
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: handbook-approvers
+spec:
+  type: team
+  children: []
+---
+# Owns the restricted Security Handbook: only its members can read it
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: security-team
+spec:
+  type: team
+  children: []

@@ -5,7 +5,8 @@ export interface Config {
     /** Entity ref path (namespace/kind/name) whose TechDocs are cited. */
     docsEntity: string;
     /**
-     * Static token for the Backstage MCP actions endpoint.
+     * @deprecated Unused. MCP calls use a token issued on behalf of the
+     * signed-in user.
      * @visibility secret
      */
     mcpToken?: string;

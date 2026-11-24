@@ -98,24 +98,6 @@ organization:
   name: Copilot Docs PoC
 
 backend:
-  # Used for enabling authentication, secret is shared by all backend plugins
-  # See https://backstage.io/docs/auth/service-to-service-auth for
-  # information on the format
-  auth:
-    externalAccess:
-      # Static token used by the copilot-chat backend to call the MCP actions endpoint
-      - type: static
-        options:
-          token: ${BACKSTAGE_MCP_ACTIONS_TOKEN}
-          subject: copilot-chat
-        # Least privilege: only the plugins behind the MCP tools. Backstage
-        # refuses to delegate tokens with permission restrictions through
-        # mcp-actions, so catalog access cannot be narrowed to read-only here.
-        accessRestrictions:
-          - plugin: mcp-actions
-          - plugin: catalog
-          - plugin: search
-          - plugin: techdocs
   baseUrl: http://localhost:7007
   listen:
     port: 7007
@@ -134,6 +116,14 @@ backend:
   database:
     client: better-sqlite3
     connection: ':memory:'
+    plugin:
+      # Docs Studio proposals live in a file so they survive restarts
+      # (the directory is gitignored). The explicit filename is required,
+      # otherwise the base ':memory:' connection wins.
+      docs-studio:
+        connection:
+          directory: ../../.docs-studio-data
+          filename: docs-studio.sqlite
   # see https://backstage.io/docs/ai/mcp-actions#actions-configuration for more details
   actions:
     pluginSources:
@@ -153,6 +143,9 @@ integrations:
       # This is a Personal Access Token or PAT from GitHub. You can find out how to generate this token, and more information
       # about setting up the GitHub integration here: https://backstage.io/docs/integrations/github/locations#configuration
       token: ${GITHUB_TOKEN}
+    # Docs Studio writes to GitHub (branches, commits, PRs, statuses) and needs a
+    # GitHub App installation. Copy app-config.local.example.yaml to
+    # app-config.local.yaml to enable it.
     ### Example for how to add your GitHub Enterprise instance using the API:
     # - host: ghe.example.net
     #   apiBaseUrl: https://ghe.example.net/api/v3
@@ -187,6 +180,23 @@ auth:
   providers:
     # See https://backstage.io/docs/auth/guest/provider
     guest: {}
+    # Microsoft Entra ID sign-in. Register an Entra app (see
+    # scripts/docs-studio/README.md) and set the AUTH_MICROSOFT_* env vars.
+    # Redirect URI: http://localhost:7007/api/auth/microsoft/handler/frame
+    microsoft:
+      development:
+        clientId: ${AUTH_MICROSOFT_CLIENT_ID}
+        clientSecret: ${AUTH_MICROSOFT_CLIENT_SECRET}
+        tenantId: ${AUTH_MICROSOFT_TENANT_ID}
+        domainHint: ${AUTH_MICROSOFT_TENANT_ID}
+        signIn:
+          # Tried in order. passport-microsoft sets profile.email to `mail`, or
+          # to the userPrincipalName when `mail` is empty, so users without a
+          # mailbox still match on `spec.profile.email`. Strict: no sign-in
+          # without a User entity in the catalog.
+          resolvers:
+            - resolver: userIdMatchingUserEntityAnnotation
+            - resolver: emailMatchingUserEntityProfileEmail
     github:
       development:
         clientId: ${AUTH_GITHUB_CLIENT_ID}
@@ -248,12 +258,20 @@ catalog:
       rules:
         - allow: [User, Group]
 
-    # Engineering Handbook migrated from Confluence (Markdown + TechDocs)
-    - type: url
-      target: https://github.com/0GiS0/confluence-to-github-poc/blob/main/catalog-info.yaml
+    # Docs Studio personas (Users and Groups). org.local.yaml is gitignored and
+    # created from org.example.yaml by scripts/start.sh.
+    - type: file
+      target: ../../examples/docs-studio/org.local.yaml
       rules:
-        - allow:
-            [Component, System, API, Group, User, Resource, Location, Domain]
+        - allow: [User, Group]
+
+    # Docs repository: a Location that points to the engineering/ and
+    # security/ handbooks (each with its own catalog-info.yaml). Set
+    # DOCS_STUDIO_REPOSITORY=<owner>/<repo> in .env to use your own repository.
+    - type: url
+      target: https://github.com/${DOCS_STUDIO_REPOSITORY:-AgenticOrganization/docs-studio-playground}/blob/main/catalog-info.yaml
+      rules:
+        - allow: [Component, Location, Group, User]
 
     ## Uncomment these lines to add more example data
     # - type: url
@@ -279,9 +297,24 @@ mcpActions:
   description: 'Tools to search the software catalog and read TechDocs pages'
 
 copilotChat:
-  # Static token the chat backend uses to call the Backstage MCP actions endpoint
-  mcpToken: ${BACKSTAGE_MCP_ACTIONS_TOKEN}
+  # The chat backend calls the MCP actions endpoint with a token minted on
+  # behalf of the signed-in user, so the permission policy applies to every tool.
   # Model used when the client does not request one
   defaultModel: claude-haiku-4.5
   # Entity whose TechDocs the assistant cites
-  docsEntity: default/component/engineering-handbook-confluence-poc
+  docsEntity: default/component/engineering-handbook
+
+# Docs Studio: propose, review and approve docs changes from Backstage
+docsStudio:
+  # The GitHub App may be installed on more repositories; Docs Studio only
+  # touches the ones listed here.
+  allowedRepositories:
+    - ${DOCS_STUDIO_REPOSITORY:-AgenticOrganization/docs-studio-playground}
+  requiredApprovals: 1
+  autoMergeOnApproval: true
+  statusContext: docs-studio/approval
+  branchPrefix: docs-studio
+  assetsDir: attachments
+  maxAssetSizeMb: 5
+  sync:
+    frequency: { minutes: 1 }

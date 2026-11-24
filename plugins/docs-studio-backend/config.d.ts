@@ -1,0 +1,86 @@
+/*
+ * Copyright 2026 The Docs Studio Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+export interface Config {
+  docsStudio?: {
+    /**
+     * Repositories Docs Studio may read from and write to, as `owner/repo`
+     * (github.com) or `host/owner/repo`. Calls on any other repository are
+     * refused, even when the GitHub App installation covers it. When unset,
+     * every repository the GitHub credentials can reach is allowed.
+     */
+    allowedRepositories?: string[];
+    /**
+     * Number of approvals, for the current head commit, needed before a
+     * proposal is marked as approved.
+     * @default 1
+     */
+    requiredApprovals?: number;
+    /**
+     * Merge the pull request as soon as it is approved.
+     * @default true
+     */
+    autoMergeOnApproval?: boolean;
+    /**
+     * Name of the commit status set on the pull request head.
+     * @default 'docs-studio/approval'
+     */
+    statusContext?: string;
+    /**
+     * Prefix of the branches created for proposals.
+     * @default 'docs-studio'
+     */
+    branchPrefix?: string;
+    /**
+     * Directory for uploaded assets, relative to the docs dir.
+     * @default 'attachments'
+     */
+    assetsDir?: string;
+    /**
+     * Maximum size of an uploaded asset, in megabytes.
+     * @default 5
+     */
+    maxAssetSizeMb?: number;
+    /**
+     * Committer for commits created through the Git Data API (new pages and
+     * uploads). Defaults to the GitHub App bot, resolved from the App
+     * configured in `integrations.github`.
+     */
+    committer?: {
+      name: string;
+      email: string;
+    };
+    sync?: {
+      /**
+       * How often pull requests are synchronized with the database.
+       * @default { minutes: 1 }
+       */
+      frequency?:
+        | { cron: string }
+        | string
+        | {
+            years?: number;
+            months?: number;
+            weeks?: number;
+            days?: number;
+            hours?: number;
+            minutes?: number;
+            seconds?: number;
+            milliseconds?: number;
+          };
+    };
+  };
+}

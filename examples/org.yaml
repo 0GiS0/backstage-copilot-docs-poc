@@ -7,8 +7,8 @@ metadata:
 spec:
   memberOf: [guests]
 ---
-# Owner of the Engineering Handbook component (spec.owner: user:0gis0 in the docs repo).
-# Its name matches the GitHub username, so GitHub sign-in resolves to this entity.
+# Repository owner account. Its name matches the GitHub username, so GitHub
+# sign-in resolves to this entity.
 apiVersion: backstage.io/v1alpha1
 kind: User
 metadata:
