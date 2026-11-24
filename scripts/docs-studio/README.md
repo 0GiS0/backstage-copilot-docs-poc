@@ -20,9 +20,12 @@ secrets. All of them accept `--help`.
 2. **Generate the docs repository content**:
    `node scripts/docs-studio/seed-playground.mjs --out ./playground-seed`
    (review the link report; it exits with code 1 if there are broken links).
-3. **Create the docs repository** (private, manually on GitHub) as `<owner>/<docs-repo>` and push
-   the content: `seed-playground.mjs --out … --push <owner>/<docs-repo> --apply`
-   (or `git push` by hand from the generated directory).
+3. **Create the docs repository** (private, empty, manually on GitHub) as `<owner>/<docs-repo>`
+   and push the content. Either regenerate and push in one go
+   (`seed-playground.mjs --out ./playground-seed --force --push <owner>/<docs-repo> --apply`;
+   `--force` only deletes the local output directory) or `git push` by hand from the
+   directory generated in step 2. Pushing needs an authenticated `gh` session and a Git
+   author name and email.
 4. **Create the GitHub App**: `node scripts/docs-studio/create-github-app.mjs --org <your-org> --apply`.
    It writes `github-app-docs-studio-credentials.yaml` (ignored by git, mode 0600).
    Then install it **only** on the docs repository (URL printed by the script).
@@ -40,5 +43,5 @@ secrets. All of them accept `--help`.
   permissions on the repo.
 - The `docs-studio/approval` status can only be published by the App, which is why
   the ruleset requires it with its `integration_id`.
-- The scripts need no new dependencies (Node ≥ 20, `gh`, `az`, and the `yaml`
+- The scripts need no new dependencies (Node 22 or 24, `gh`, `az`, and the `yaml`
   package already installed in the repo).

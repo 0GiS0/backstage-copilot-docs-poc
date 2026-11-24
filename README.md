@@ -2,7 +2,7 @@
 
 Proof of concept of a developer portal built on [Backstage](https://backstage.io) that:
 
-1. **Publishes team documentation as TechDocs.** The documentation (Markdown handbooks built with MkDocs) lives in a GitHub repository that you own, the _docs repository_. It contains two sample handbooks, `engineering-handbook` and `security-handbook`, and is registered in the catalog with a URL location. You create this repository yourself; see [Create your docs repository](#4-create-your-docs-repository).
+1. **Publishes team documentation as TechDocs.** The documentation (Markdown handbooks built with MkDocs) lives in a GitHub repository that you own, the _docs repository_. It contains two sample handbooks, `engineering-handbook` and `security-handbook`, and is registered in the catalog with a URL location. You create this repository yourself; see [Create your docs repository](#3-create-your-docs-repository).
 2. **Indexes that documentation in Search** (catalog and TechDocs collators).
 3. **Adds a chat built with the Microsoft Copilot SDK (formerly GitHub Copilot SDK)** that answers questions about the handbooks using Backstage's MCP actions (`search.query`, catalog and TechDocs actions) and **cites the source page**.
 4. **Lets people read and edit that documentation from Backstage without a GitHub account**, with **Docs Studio**. People who only have a Microsoft Entra ID identity can read TechDocs (according to their permissions), edit pages, propose changes and create new pages. A GitHub App turns each proposal into a branch and a pull request, and approval happens in Backstage (see [Docs Studio](#docs-studio)).
@@ -18,8 +18,8 @@ Proof of concept of a developer portal built on [Backstage](https://backstage.io
 4. [Prerequisites and setup](#prerequisites-and-setup)
    - [1. Tools](#1-tools)
    - [2. Sign-in apps](#2-sign-in-apps)
-   - [3. GitHub token](#3-github-token)
-   - [4. Create your docs repository](#4-create-your-docs-repository)
+   - [3. Create your docs repository](#3-create-your-docs-repository)
+   - [4. GitHub token](#4-github-token)
    - [5. Docs Studio GitHub App](#5-docs-studio-github-app)
    - [6. Python and mkdocs-techdocs-core](#6-python-and-mkdocs-techdocs-core)
    - [7. Copilot license](#7-copilot-license)
@@ -135,6 +135,15 @@ Versions of the main components: Backstage 1.56.0 (new frontend system), `@githu
 
 If your network requires a package proxy or a private registry, configure it for Yarn (`YARN_NPM_REGISTRY_SERVER` or `npmRegistryServer` in a user-level `.yarnrc.yml`) and for pip before running the install commands below.
 
+Then install the dependencies and sign in to GitHub from the CLI (the setup scripts need an authenticated `gh` session, and pushing the docs repository creates a commit, so Git needs a name and email):
+
+```bash
+yarn install
+gh auth login
+git config --global user.name "Your Name"      # only if not set yet
+git config --global user.email you@example.com # only if not set yet
+```
+
 ### 2. Sign-in apps
 
 1. **GitHub OAuth App** for GitHub sign-in (the chat needs the user's GitHub identity). Create it under GitHub > Settings > Developer settings > OAuth Apps:
@@ -150,11 +159,7 @@ If your network requires a package proxy or a private registry, configure it for
 
 GitHub sign-in is configured for a PoC: it accepts any GitHub user even without a matching `User` entity (`dangerouslyAllowSignInWithoutUserInCatalog` in `app-config.yaml`). Remove that flag for anything beyond a PoC.
 
-### 3. GitHub token
-
-Create a fine-grained personal access token with **read-only "Contents"** access to your docs repository and put it in `GITHUB_TOKEN`. Backstage uses it to read the catalog files and the Markdown. Writes (Docs Studio proposals) use the GitHub App instead.
-
-### 4. Create your docs repository
+### 3. Create your docs repository
 
 The docs repository holds the TechDocs sources and is the only repository Docs Studio is allowed to write to. The scripts in `scripts/docs-studio/` generate a ready-to-use one from a public sample corpus ([`0GiS0/confluence-to-github-poc`](https://github.com/0GiS0/confluence-to-github-poc)): an engineering handbook and a restricted security handbook, each with its own `catalog-info.yaml` and `mkdocs.yml`, plus a root `catalog-info.yaml` that registers both.
 
@@ -162,12 +167,13 @@ The docs repository holds the TechDocs sources and is the only repository Docs S
 # 1. Generate the content locally (dry, changes nothing on GitHub)
 node scripts/docs-studio/seed-playground.mjs --out ./docs-repo-seed
 
-# 2. Create an empty repository on GitHub, for example <owner>/<docs-repo>
-gh repo create <owner>/<docs-repo> --private
+# 2. Create an empty repository on GitHub. Use the SAME organization that will own
+#    the GitHub App in the next step: a private App can only be installed on its owner's repositories
+gh repo create <org>/<docs-repo> --private
 
 # 3. Push the generated content (dry-run unless --apply is given)
 node scripts/docs-studio/seed-playground.mjs --out ./docs-repo-seed --force \
-  --push <owner>/<docs-repo> --apply
+  --push <org>/<docs-repo> --apply
 ```
 
 You can use your own existing documentation instead, as long as the repository has a root `catalog-info.yaml` (a `Location` pointing to one or more `catalog-info.yaml` files with `backstage.io/techdocs-ref: dir:.` and a `mkdocs.yml`).
@@ -175,12 +181,12 @@ You can use your own existing documentation instead, as long as the repository h
 **Point Backstage at it** by setting a single variable in `.env`, with no need to edit any tracked file:
 
 ```bash
-DOCS_STUDIO_REPOSITORY=<owner>/<docs-repo>
+DOCS_STUDIO_REPOSITORY=<org>/<docs-repo>
 ```
 
 `app-config.yaml` reads this variable in two places: the catalog location (`https://github.com/<owner>/<docs-repo>/blob/main/catalog-info.yaml`) and `docsStudio.allowedRepositories`. If the variable is not set, it falls back to the original demo repository `AgenticOrganization/docs-studio-playground`, which is private and unreachable for you, so always set it. `scripts/start.sh` prints a notice when it is missing.
 
-Optionally apply the branch ruleset that makes the `docs-studio/approval` status mandatory (after you have the GitHub App id, next step):
+Optionally apply the branch ruleset (rulesets on private organization repositories need a GitHub Team or Enterprise Cloud plan; without it, Docs Studio still works, but PRs opened directly on GitHub are not blocked until approved) that makes the `docs-studio/approval` status mandatory (after you have the GitHub App id, next step):
 
 ```bash
 node scripts/docs-studio/apply-ruleset.mjs --repo <owner>/<docs-repo> --app-id <id>          # dry-run
@@ -189,13 +195,17 @@ node scripts/docs-studio/apply-ruleset.mjs --repo <owner>/<docs-repo> --app-id <
 
 The sample handbooks are owned by the groups `handbook-approvers` and `security-team`, which must exist in the catalog (they are included in `examples/docs-studio/org.example.yaml`).
 
+### 4. GitHub token
+
+Create a fine-grained personal access token with **read-only "Contents"** access to your docs repository and put it in `GITHUB_TOKEN`. Backstage uses it to read the catalog files and the Markdown. Writes (Docs Studio proposals) use the GitHub App instead.
+
 ### 5. Docs Studio GitHub App
 
 The App creates branches, commits, pull requests and commit statuses (permissions `contents:write`, `pull_requests:write`, `statuses:write`, `metadata:read`; no webhooks).
 
 ```bash
-node scripts/docs-studio/create-github-app.mjs --org <your-org>          # dry-run: prints the manifest
-node scripts/docs-studio/create-github-app.mjs --org <your-org> --apply  # opens GitHub to confirm
+node scripts/docs-studio/create-github-app.mjs --org <org>          # dry-run: prints the manifest
+node scripts/docs-studio/create-github-app.mjs --org <org> --apply  # opens GitHub to confirm
 ```
 
 The script writes `github-app-docs-studio-credentials.yaml` (gitignored, mode 0600). Then:
@@ -266,11 +276,15 @@ Docs Studio needs `User` and `Group` entities. Two files provide them:
   kind: User
   metadata:
     name: your-github-login
+    annotations:
+      github.com/user-login: your-github-login
   spec:
     profile:
       displayName: Your Name
     memberOf: [guests]
   ```
+
+  To use the Copilot chat, the `User` also needs the annotation `github.com/user-login: your-github-login` (under `metadata.annotations`) **and** the account needs a real GitHub Copilot license. Docs Studio treats the annotation as "has a Copilot license".
 
 - `examples/docs-studio/org.local.yaml` (gitignored): the Docs Studio personas. `scripts/start.sh` creates it from the committed `org.example.yaml` the first time. Replace every `REPLACE_ME` value:
 

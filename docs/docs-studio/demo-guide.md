@@ -217,7 +217,7 @@ Verified on PRs #1 and #3 of the docs repository:
 
 ### 4.1 Requirements
 
-- **Tools:** Node 22 or higher, Yarn 4 (see `package.json`), `gh`, a Python _venv_ with `mkdocs` and `mkdocs-techdocs-core` (by default `~/.venvs/techdocs`, configurable with `TECHDOCS_VENV`), and Chrome or Edge (Safari does not work on `http://localhost`, see section 8). If your network requires a package proxy, configure it for yarn/pip.
+- **Tools:** Node 22 or 24, Yarn 4 (see `package.json`), `gh`, a Python _venv_ with `mkdocs` and `mkdocs-techdocs-core` (by default `~/.venvs/techdocs`, configurable with `TECHDOCS_VENV`), and Chrome or Edge (Safari does not work on `http://localhost`, see section 8). If your network requires a package proxy, configure it for yarn/pip.
 - **Local files, all ignored by git:**
 
   | File                                      | Contents                                                                                                                                                                                                                    |
@@ -377,12 +377,12 @@ Each recording of demo 3 creates a real PR and a merge into `main` of the docs r
 
 ### 8.3 Returning the docs repository to its initial state
 
-`main` is protected by the ruleset: it needs a PR, does not allow _force-push_ and has no _bypass_. That is why you cannot "rewind" by pushing directly, and `seed-playground.mjs` has no reset mode. There are two options (⚠️ neither has been tested yet):
+`main` is protected by the ruleset: it needs a PR, does not allow _force-push_ and has no _bypass_. That is why you cannot "rewind" by pushing directly, and `seed-playground.mjs` has no reset mode. The supported way is to revert through PRs (⚠️ not tested yet):
 
 1. **Revert via PR (recommended, respects the rules).** On each merged PR, a licensed person clicks **Revert** on GitHub. Docs Studio imports the revert PR, Samwell approves it in Backstage and the App merges it.
-2. **Regenerate from the seed.** An administrator temporarily disables the ruleset and pushes the output of `seed-playground.mjs --out … --force`. Then they re-enable the ruleset with `apply-ruleset.mjs --apply`.
-   - It changes the repository configuration, so it needs explicit confirmation.
    - Afterwards the Docs Studio database must be emptied (see section 8.2).
+
+- To start over completely, delete the docs repository, create a new empty one and run `seed-playground.mjs … --push … --apply` again. The seed script cannot push over an existing `main`.
 
 PRs created so far in the demo's docs repository (all real):
 
