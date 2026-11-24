@@ -33,8 +33,8 @@ secrets. All of them accept `--help`.
    (run a dry-run first without `--apply` to review the JSON). **Optional:** private
    organization repositories need GitHub Team or Enterprise Cloud for rulesets. Without a
    ruleset, PRs opened directly on GitHub are not blocked.
-6. **Configure Backstage**: copy `app-config.local.example.yaml` to
-   `app-config.local.yaml`, fill in `.env` (`GITHUB_TOKEN`, `AUTH_MICROSOFT_*`, and
+6. **Configure Backstage**: create `app-config.local.yaml` from
+   `app-config.local.example.yaml` only if it does not exist yet, fill in `.env` (`GITHUB_TOKEN`, `AUTH_MICROSOFT_*`, and
    `DOCS_STUDIO_REPOSITORY=<org>/<docs-repo>`) and edit
    `examples/docs-studio/org.local.yaml`; start with `scripts/start.sh`.
 

@@ -211,7 +211,7 @@ node scripts/docs-studio/create-github-app.mjs --org <org> --apply  # opens GitH
 The script writes `github-app-docs-studio-credentials.yaml` (gitignored, mode 0600). Then:
 
 1. Install the App **only on your docs repository** (the script prints the URL).
-2. Copy the local config template: `cp app-config.local.example.yaml app-config.local.yaml`. It includes the credentials file.
+2. Make sure `app-config.local.yaml` exists (see the guarded copy commands in the [Configuration reference](#configuration-reference); do not overwrite an existing file). It includes the credentials file.
 
 Even if the App is installed on more repositories, Docs Studio only acts on those listed in `docsStudio.allowedRepositories` (which is `DOCS_STUDIO_REPOSITORY`).
 

@@ -383,7 +383,7 @@ Each recording of demo 3 creates a real PR and a merge into `main` of the docs r
 
    - Afterwards the Docs Studio database must be emptied (see section 8.2).
 
-2. **Start over completely.** Delete the docs repository, create a new empty one and run `seed-playground.mjs … --push … --apply` again (the seed script cannot push over an existing `main`). Then restore access and rules: install the GitHub App on the new repository, grant the token access to it, re-apply the ruleset if you use one (see `scripts/docs-studio/README.md`), and empty the Docs Studio database (section 8.2). This last step is required when the repository name is reused, because stored proposals would otherwise hide new PRs with the same numbers.
+2. **Start over completely.** Delete the docs repository, create a new empty one and run `seed-playground.mjs … --push … --apply` again (the seed script cannot push over an existing `main`). Then restore access and rules (if the new repository has a different name, also update `DOCS_STUDIO_REPOSITORY` in `.env` before restarting Backstage, because the catalog URL and the allow-list use it): install the GitHub App on the new repository, grant the token access to it, re-apply the ruleset if you use one (see `scripts/docs-studio/README.md`), and empty the Docs Studio database (section 8.2). This last step is required when the repository name is reused, because stored proposals would otherwise hide new PRs with the same numbers.
 
 PRs created so far in the demo's docs repository (all real):
 
