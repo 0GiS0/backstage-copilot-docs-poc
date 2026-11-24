@@ -229,7 +229,7 @@ server.close();
 
 if (!result.ok) fail(result.error.message);
 const { app } = result;
-const includePath = `./${path.relative(REPO_ROOT, outFile)}`;
+const includePath = JSON.stringify(`./${path.relative(REPO_ROOT, outFile)}`);
 console.log(`\nApp "${app.name}" created (id ${app.id}, slug ${app.slug}).`);
 console.log(`Credentials written to ${outFile} (mode 0600).`);
 console.log(`
