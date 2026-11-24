@@ -20,21 +20,22 @@ secrets. All of them accept `--help`.
 2. **Generate the docs repository content**:
    `node scripts/docs-studio/seed-playground.mjs --out ./playground-seed`
    (review the link report; it exits with code 1 if there are broken links).
-3. **Create the docs repository** (private, empty, manually on GitHub) as `<owner>/<docs-repo>`
-   and push the content. Either regenerate and push in one go
-   (`seed-playground.mjs --out ./playground-seed --force --push <owner>/<docs-repo> --apply`;
-   `--force` only deletes the local output directory) or `git push` by hand from the
-   directory generated in step 2. Pushing needs an authenticated `gh` session and a Git
-   author name and email.
+3. **Create the docs repository** (private, empty, manually on GitHub) as `<org>/<docs-repo>`
+   and push the content by regenerating it in one go:
+   `node scripts/docs-studio/seed-playground.mjs --out ./playground-seed --force --push <org>/<docs-repo> --apply`
+   (`--force` only deletes the local output directory; the script runs `git init`, commits
+   and pushes). Pushing needs an authenticated `gh` session and a Git author name and email.
 4. **Create the GitHub App**: `node scripts/docs-studio/create-github-app.mjs --org <your-org> --apply`.
    It writes `github-app-docs-studio-credentials.yaml` (ignored by git, mode 0600).
    Then install it **only** on the docs repository (URL printed by the script).
 5. **Apply the ruleset** with the App id:
-   `node scripts/docs-studio/apply-ruleset.mjs --repo <owner>/<docs-repo> --app-id <id> --apply`
-   (run a dry-run first without `--apply` to review the JSON).
+   `node scripts/docs-studio/apply-ruleset.mjs --repo <org>/<docs-repo> --app-id <id> --apply`
+   (run a dry-run first without `--apply` to review the JSON). **Optional:** private
+   organization repositories need GitHub Team or Enterprise Cloud for rulesets. Without a
+   ruleset, PRs opened directly on GitHub are not blocked.
 6. **Configure Backstage**: copy `app-config.local.example.yaml` to
    `app-config.local.yaml`, fill in `.env` (`GITHUB_TOKEN`, `AUTH_MICROSOFT_*`, and
-   `DOCS_STUDIO_REPOSITORY=<owner>/<docs-repo>`) and edit
+   `DOCS_STUDIO_REPOSITORY=<org>/<docs-repo>`) and edit
    `examples/docs-studio/org.local.yaml`; start with `scripts/start.sh`.
 
 ## Notes

@@ -232,9 +232,11 @@ The chat needs a GitHub account with a **GitHub Copilot license**. The rest of t
 
 ## Configuration reference
 
+Create these files once, at the start of setup, and only if they do not exist yet (copying again would erase the values you entered):
+
 ```bash
-cp .env.example .env
-cp app-config.local.example.yaml app-config.local.yaml
+[ -f .env ] || cp .env.example .env
+[ -f app-config.local.yaml ] || cp app-config.local.example.yaml app-config.local.yaml
 ```
 
 Never commit `.env` or `app-config.local.yaml`.
