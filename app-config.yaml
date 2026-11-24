@@ -265,10 +265,11 @@ catalog:
       rules:
         - allow: [User, Group]
 
-    # Docs Studio playground: a Location that points to the engineering/ and
-    # security/ handbooks (each with its own catalog-info.yaml)
+    # Docs repository: a Location that points to the engineering/ and
+    # security/ handbooks (each with its own catalog-info.yaml). Set
+    # DOCS_STUDIO_REPOSITORY=<owner>/<repo> in .env to use your own repository.
     - type: url
-      target: https://github.com/AgenticOrganization/docs-studio-playground/blob/main/catalog-info.yaml
+      target: https://github.com/${DOCS_STUDIO_REPOSITORY:-AgenticOrganization/docs-studio-playground}/blob/main/catalog-info.yaml
       rules:
         - allow: [Component, Location, Group, User]
 
@@ -308,7 +309,7 @@ docsStudio:
   # The GitHub App may be installed on more repositories; Docs Studio only
   # touches the ones listed here.
   allowedRepositories:
-    - AgenticOrganization/docs-studio-playground
+    - ${DOCS_STUDIO_REPOSITORY:-AgenticOrganization/docs-studio-playground}
   requiredApprovals: 1
   autoMergeOnApproval: true
   statusContext: docs-studio/approval

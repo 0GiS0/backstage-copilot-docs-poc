@@ -1,43 +1,48 @@
-# Docs Studio: scripts de preparación
+# Docs Studio: setup scripts
 
-Scripts para montar el entorno de Docs Studio. Los que **cambian algo** (GitHub o
-local) son _dry-run_ por defecto y necesitan `--apply`. Ninguno imprime secretos.
-Todos aceptan `--help`.
+Scripts to set up the Docs Studio environment. Those that **change something**
+(GitHub or local) are _dry-run_ by default and need `--apply`. None of them prints
+secrets. All of them accept `--help`.
 
-| Script                      | ¿Cambia algo?                                                                | Confirmación explícita |
-| --------------------------- | ---------------------------------------------------------------------------- | ---------------------- |
-| `list-entra-unlicensed.mjs` | No (solo lectura, `az` + Graph)                                              | No                     |
-| `seed-playground.mjs`       | Solo local (genera un directorio). Con `--push … --apply` hace push a GitHub | Para `--push --apply`  |
-| `create-github-app.mjs`     | Crea una GitHub App en la organización (con `--apply`)                       | **Sí**                 |
-| `apply-ruleset.mjs`         | Crea/actualiza un ruleset del repo (con `--apply`)                           | **Sí**                 |
+| Script                      | Changes anything?                                                               | Explicit confirmation |
+| --------------------------- | ------------------------------------------------------------------------------- | --------------------- |
+| `list-entra-unlicensed.mjs` | No (read-only, `az` + Graph)                                                    | No                    |
+| `seed-playground.mjs`       | Local only (generates a directory). With `--push … --apply` it pushes to GitHub | For `--push --apply`  |
+| `create-github-app.mjs`     | Creates a GitHub App in the organization (with `--apply`)                       | **Yes**               |
+| `apply-ruleset.mjs`         | Creates/updates a repo ruleset (with `--apply`)                                 | **Yes**               |
 
-## Orden recomendado
+## Recommended order
 
-1. **Identificar usuarios sin licencia** (opcional, solo lectura): `az login --tenant <tenant> --allow-no-subscriptions`
-   y `node scripts/docs-studio/list-entra-unlicensed.mjs`. Sirve para rellenar
+1. **Identify unlicensed users** (optional, read-only): `az login --tenant <tenant> --allow-no-subscriptions`
+   and `node scripts/docs-studio/list-entra-unlicensed.mjs`. Use the output to fill in
    `examples/docs-studio/org.local.yaml` (`id` → `graph.microsoft.com/user-id`,
-   `mail` o, si está vacío, `userPrincipalName` → `spec.profile.email`).
-2. **Generar el contenido del repo de docs**:
+   `mail` or, if empty, `userPrincipalName` → `spec.profile.email`).
+2. **Generate the docs repository content**:
    `node scripts/docs-studio/seed-playground.mjs --out ./playground-seed`
-   (revisa el informe de enlaces; sale con código 1 si hay enlaces rotos).
-3. **Crear el repo** privado `AgenticOrganization/docs-studio-playground` (manual,
-   en GitHub) y subir el contenido: `seed-playground.mjs --out … --push AgenticOrganization/docs-studio-playground --apply`
-   (o `git push` a mano desde el directorio generado).
-4. **Crear la GitHub App**: `node scripts/docs-studio/create-github-app.mjs --org AgenticOrganization --apply`.
-   Escribe `github-app-docs-studio-credentials.yaml` (ignorado por git, modo 0600).
-   Después instálala **solo** en el repo del playground (URL que imprime el script).
-5. **Aplicar el ruleset** con el id de la App:
-   `node scripts/docs-studio/apply-ruleset.mjs --repo AgenticOrganization/docs-studio-playground --app-id <id> --apply`
-   (haz primero un dry-run sin `--apply` para revisar el JSON).
-6. **Configurar Backstage**: copia `app-config.local.example.yaml` a
-   `app-config.local.yaml`, rellena `.env` (`GITHUB_TOKEN`, `AUTH_MICROSOFT_*`) y
-   edita `examples/docs-studio/org.local.yaml`; arranca con `scripts/start.sh`.
+   (review the link report; it exits with code 1 if there are broken links).
+3. **Create the docs repository** (private, empty, manually on GitHub) as `<org>/<docs-repo>`
+   and push the content by regenerating it in one go:
+   `node scripts/docs-studio/seed-playground.mjs --out ./playground-seed --force --push <org>/<docs-repo> --apply`
+   (`--force` only deletes the local output directory; the script runs `git init`, commits
+   and pushes). Pushing needs an authenticated `gh` session and a Git author name and email.
+4. **Create the GitHub App**: `node scripts/docs-studio/create-github-app.mjs --org <your-org> --apply`.
+   It writes `github-app-docs-studio-credentials.yaml` (ignored by git, mode 0600).
+   Then install it **only** on the docs repository (URL printed by the script).
+5. **Apply the ruleset** with the App id:
+   `node scripts/docs-studio/apply-ruleset.mjs --repo <org>/<docs-repo> --app-id <id> --apply`
+   (run a dry-run first without `--apply` to review the JSON). **Optional:** private
+   organization repositories need GitHub Team or Enterprise Cloud for rulesets. Without a
+   ruleset, PRs opened directly on GitHub are not blocked.
+6. **Configure Backstage**: create `app-config.local.yaml` from
+   `app-config.local.example.yaml` only if it does not exist yet (otherwise add the `apps` `$include` of the credentials file to its `host: github.com` integration, with `token: ${GITHUB_TOKEN}` if the entry is missing), fill in `.env` (`GITHUB_TOKEN`, `AUTH_MICROSOFT_*`, and
+   `DOCS_STUDIO_REPOSITORY=<org>/<docs-repo>`) and edit
+   `examples/docs-studio/org.local.yaml`; start with `scripts/start.sh`.
 
-## Notas
+## Notes
 
-- `apply-ruleset.mjs` usa tu sesión de `gh` (o `GH_TOKEN`) y requiere permisos de
-  administrador sobre el repo.
-- El estado `docs-studio/approval` solo lo publica la App, por eso el ruleset lo
-  exige con su `integration_id`.
-- Los scripts no necesitan dependencias nuevas (Node ≥ 20, `gh`, `az` y el paquete
-  `yaml` ya instalado en el repo).
+- `apply-ruleset.mjs` uses your `gh` session (or `GH_TOKEN`) and requires admin
+  permissions on the repo.
+- The `docs-studio/approval` status can only be published by the App, which is why
+  the ruleset requires it with its `integration_id`.
+- The scripts need no new dependencies (Node 22 or 24, `gh`, `az`, and the `yaml`
+  package already installed in the repo).

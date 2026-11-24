@@ -13,6 +13,11 @@ else
   echo "Warning: .env not found. Copy .env.example to .env and fill it in." >&2
 fi
 
+if [ -z "${DOCS_STUDIO_REPOSITORY:-}" ]; then
+  echo "Notice: DOCS_STUDIO_REPOSITORY is not set; using the default demo docs repository (private)." >&2
+  echo "        Set it in .env to <owner>/<repo> of your own docs repository." >&2
+fi
+
 ORG_LOCAL=examples/docs-studio/org.local.yaml
 if [ ! -f "$ORG_LOCAL" ]; then
   cp examples/docs-studio/org.example.yaml "$ORG_LOCAL"
