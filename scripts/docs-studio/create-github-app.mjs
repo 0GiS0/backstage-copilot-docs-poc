@@ -229,6 +229,7 @@ server.close();
 
 if (!result.ok) fail(result.error.message);
 const { app } = result;
+const includePath = `./${path.relative(process.cwd(), outFile)}`;
 console.log(`\nApp "${app.name}" created (id ${app.id}, slug ${app.slug}).`);
 console.log(`Credentials written to ${outFile} (mode 0600).`);
 console.log(`
@@ -237,9 +238,10 @@ Next steps:
      (select only your docs repository, the value of DOCS_STUDIO_REPOSITORY).
   2. If app-config.local.yaml does not exist, copy app-config.local.example.yaml
      to it (it already includes ./github-app-docs-studio-credentials.yaml).
-     If it exists, add this under integrations.github[0] (github.com) and keep your other settings:
+     If it exists, find (or add, together with token: \${GITHUB_TOKEN}) the integrations.github
+     entry with host: github.com, keep your other entries, and add:
        apps:
-         - $include: ./github-app-docs-studio-credentials.yaml
+         - $include: ${includePath}
   3. Apply the branch ruleset with the App id:
      node scripts/docs-studio/apply-ruleset.mjs --repo <org>/<repo> --app-id ${app.id}
 `);
